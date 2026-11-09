@@ -57,7 +57,8 @@ ignore = [
     "PLR0913",  # serviços de negócio recebem muitos parâmetros nomeados
     "PLR2004",  # constantes numéricas de regras de negócio são explícitas
     "RUF001", "RUF002", "RUF003",  # textos em português
-    "N818",  # exceções de domínio têm nomes em português (ValorInvalido)
+    "N818",
+    "S101",  # assert só para invariantes/estreitamento de tipos, nunca validação de entrada  # exceções de domínio têm nomes em português (ValorInvalido)
 ]
 
 [tool.ruff.lint.per-file-ignores]

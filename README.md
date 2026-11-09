@@ -3,8 +3,8 @@
 Bot do Telegram + aplicação web para a família registrar receitas, despesas e compras
 parceladas, acompanhar o orçamento do mês e consultar compromissos futuros.
 
-> **Estado:** Etapas 2 (fundação), 3 (bot) e 4 (web) implementadas; operação e
-> integrações (Etapa 5) em andamento — veja `PROGRESSO.md`.
+> **Estado:** bot, aplicação web, operação (backup, logs, Docker) e integrações
+> implementados e testados; falta a validação com o Telegram real.
 
 ## Pré-requisitos
 

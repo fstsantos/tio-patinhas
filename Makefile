@@ -3,13 +3,14 @@ UV ?= uv
 COMPOSE ?= docker compose
 
 .PHONY: help install lint format typecheck test test-unit test-integration cov check \
-        up down logs migrate migrate-down criar-admin integridade test-docker
+        up down logs migrate migrate-down criar-admin integridade test-docker \
+        web bot backup restore
 
 help:  ## Lista os alvos
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
 
-install:  ## Instala dependências travadas (inclui dev)
-	$(UV) sync --frozen
+install:  ## Instala dependências travadas (dev + voz + llm)
+	$(UV) sync --frozen --extra voz --extra llm
 
 lint:  ## ruff (lint + formatação)
 	$(UV) run ruff check src tests migrations
@@ -62,3 +63,16 @@ test-docker:  ## Testes contra o PostgreSQL isolado de compose.test.yaml
 	TEST_DATABASE_URL=postgresql+psycopg://teste:teste@localhost:55432/financas_teste \
 		$(UV) run pytest; status=$$?; \
 		$(COMPOSE) -f compose.test.yaml down -v; exit $$status
+
+web:  ## Web local com recarga (http://127.0.0.1:8000)
+	$(UV) run uvicorn financas.web.app:criar_app --factory --reload
+
+bot:  ## Bot local (polling)
+	$(UV) run python -m financas.bot.app
+
+backup:  ## Backup do banco em ./backups (BACKUP_VIA_DOCKER=1 para usar o contêiner)
+	./scripts/backup.sh
+
+restore:  ## Restaura ARQUIVO=<backup.dump> (apaga os dados atuais!)
+	./scripts/restore.sh $(ARQUIVO) --sim
+	$(UV) run financas verificar-integridade

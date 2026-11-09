@@ -58,6 +58,7 @@ ignore = [
     "PLR2004",  # constantes numéricas de regras de negócio são explícitas
     "RUF001", "RUF002", "RUF003",  # textos em português
     "N818",
+    "PLR0911",  # despachantes de comandos usam retornos antecipados
     "S101",  # assert só para invariantes/estreitamento de tipos, nunca validação de entrada  # exceções de domínio têm nomes em português (ValorInvalido)
 ]
 
@@ -73,7 +74,7 @@ packages = ["financas"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pgserver.*", "faster_whisper.*"]
+module = ["pgserver.*", "faster_whisper.*", "av.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

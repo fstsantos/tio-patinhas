@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     telegram_bot_username: str | None = None
     telegram_chats_permitidos: Annotated[list[int], NoDecode] = Field(default_factory=list)
     telegram_webhook_url: str | None = None
+    telegram_webhook_porta: int = 8443
 
     # Web
     web_secret_key: SecretStr = SecretStr("troque-esta-chave-em-producao")
@@ -52,6 +53,9 @@ class Settings(BaseSettings):
     # Voz
     stt_provedor: ProvedorSTT = ProvedorSTT.FASTER_WHISPER
     stt_modelo_whisper: str = "small"
+    stt_modelo_openai: str = "gpt-4o-mini-transcribe"
+    stt_timeout_segundos: float = 120.0
+    voz_duracao_maxima_segundos: int = 120
     openai_api_key: SecretStr | None = None
 
     # LLM (opcional)

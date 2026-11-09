@@ -1,0 +1,13 @@
+# Copie para /etc/systemd/system/ (ajuste User e WorkingDirectory).
+[Unit]
+Description=Backup do banco do Tio Patinhas
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=financas
+WorkingDirectory=/opt/tio-patinhas
+Environment=BACKUP_VIA_DOCKER=1
+Environment=BACKUP_RETENCAO_DIAS=30
+ExecStart=/opt/tio-patinhas/scripts/backup.sh /var/backups/tio-patinhas

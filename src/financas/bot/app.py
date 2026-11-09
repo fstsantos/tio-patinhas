@@ -33,8 +33,17 @@ def criar_llm(cfg: Settings) -> LLMProvider | None:
             return None
         case ProvedorLLM.FALSO:
             return LLMFalsa()
+        case ProvedorLLM.ANTHROPIC:
+            if cfg.anthropic_api_key is None:
+                raise SystemExit("LLM_PROVEDOR=anthropic exige ANTHROPIC_API_KEY")
+            from financas.integrations.llm.anthropic import LLMAnthropic  # noqa: PLC0415
+
+            return LLMAnthropic(
+                cfg.anthropic_api_key.get_secret_value(),
+                modelo=cfg.llm_modelo,
+                timeout=cfg.llm_timeout_segundos,
+            )
         case _:
-            # Provedores reais entram na Etapa 5; até lá, sem LLM.
             log.warning("llm_provedor_nao_implementado", extra={"provedor": cfg.llm_provedor})
             return None
 

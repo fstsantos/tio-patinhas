@@ -70,4 +70,10 @@ def configurar_logs(nivel: str = "INFO", *, json_: bool = True) -> None:
     raiz.handlers[:] = [handler]
     raiz.setLevel(nivel.upper())
     # httpx registra URLs com o token do bot; mantém em WARNING.
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    for nome in ("httpx", "httpx2"):
+        logging.getLogger(nome).setLevel(logging.WARNING)
+    # uvicorn instala handlers próprios; faz seus logs passarem pelo formatador (e máscara).
+    for nome in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        lg = logging.getLogger(nome)
+        lg.handlers[:] = []
+        lg.propagate = True

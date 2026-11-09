@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     # LLM (opcional)
     llm_provedor: ProvedorLLM = ProvedorLLM.NENHUM
     llm_timeout_segundos: float = 15.0
+    llm_modelo: str = "claude-opus-5-5"
     anthropic_api_key: SecretStr | None = None
 
     @field_validator("telegram_chats_permitidos", mode="before")

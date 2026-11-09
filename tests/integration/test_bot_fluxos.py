@@ -325,3 +325,48 @@ async def test_voz_de_nao_cadastrado_ignorada(bot: Processador) -> None:
 async def test_botao_invalido_ou_de_estranho(bot: Processador) -> None:
     assert (await bot.botao(ANA, GRUPO, "lixo")).alerta
     assert (await bot.botao(ESTRANHO, GRUPO, "c:00000000-0000-0000-0000-000000000000:s")).alerta
+
+
+def _eventos(caplog: pytest.LogCaptureFixture) -> dict[str, logging.LogRecord]:
+    return {r.getMessage(): r for r in caplog.records if r.name == "financas.bot.processador"}
+
+
+async def test_logs_descrevem_operacoes(bot: Processador, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.INFO)
+    await bot.texto(msg("crédito 300 3 geladeira"))
+    ev = _eventos(caplog)
+    cmd = ev["comando"].__dict__
+    assert cmd["comando"] == "Credito" and cmd["valor_total"] == "300.00"
+    assert cmd["parcelas"] == 3 and cmd["membro"] == "Ana" and cmd["chat"] == GRUPO
+    reg = ev["lancamento_registrado"].__dict__
+    assert reg["tipo"] == "CREDITO" and reg["valor"] == "300.00"
+    assert reg["descricao"] == "geladeira" and reg["origem"] == "TELEGRAM_TEXTO"
+    lanc_id = reg["lancamento_id"]
+
+    r = await bot.texto(msg(f"cancelar {lanc_id} duplicado"))
+    assert r is not None
+    pedido = _eventos(caplog)["cancelamento_solicitado"].__dict__
+    assert pedido["lancamento_id"] == lanc_id and pedido["motivo"] == "duplicado"
+    await _confirmar(bot, r)
+    cancelado = _eventos(caplog)["lancamento_cancelado"].__dict__
+    assert cancelado["lancamento_id"] == lanc_id and cancelado["membro"] == "Ana"
+
+    await bot.texto(msg(f"cancelar {lanc_id}"))
+    recusa = _eventos(caplog)["comando_recusado"].__dict__
+    assert "já está cancelado" in recusa["erro"]
+
+
+async def test_logs_de_voz_trazem_transcricao(
+    bot: Processador, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO)
+    bot.stt = TranscricaoFalsa("débito de dez reais no mercado")
+    r = await bot.voz(msg(None, chat=ANA), b"ogg")
+    assert r is not None
+    ev = _eventos(caplog)
+    voz = ev["voz_interpretada"].__dict__
+    assert voz["transcricao"] == "débito de dez reais no mercado"
+    assert voz["comando"] == "Debito" and voz["chat"] == "privado"
+    assert ev["confirmacao_solicitada"].__dict__["descricao"] == "mercado"
+    await _confirmar(bot, r, chat=ANA)
+    assert _eventos(caplog)["lancamento_registrado"].__dict__["origem"] == "TELEGRAM_VOZ"

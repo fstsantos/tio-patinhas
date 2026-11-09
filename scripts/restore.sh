@@ -5,6 +5,7 @@
 # Variáveis:
 #   RESTORE_DATABASE_URL   banco de destino (padrão: DATABASE_URL)
 #   PG_BIN                 diretório dos binários (opcional)
+#   RESTORE_VIA_DOCKER=1   usa o pg_restore do contêiner "db" do compose.yaml
 #
 # A restauração roda em transação única: se algo falhar, nada muda.
 # Depois, rode:  uv run financas verificar-integridade
@@ -18,6 +19,14 @@ fi
 [[ -r "$arquivo" ]] || { echo "Arquivo não encontrado: $arquivo" >&2; exit 1; }
 
 raiz="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ "${RESTORE_VIA_DOCKER:-0}" == "1" ]]; then
+  db=(docker compose -f "$raiz/compose.yaml" exec -T db)
+  "${db[@]}" pg_restore --list < "$arquivo" > /dev/null
+  "${db[@]}" pg_restore --clean --if-exists --no-owner --no-privileges \
+    --single-transaction --exit-on-error -U financas -d financas < "$arquivo"
+  echo "Restaurado: $arquivo"
+  exit 0
+fi
 if [[ -z "${RESTORE_DATABASE_URL:-}${DATABASE_URL:-}" && -f "$raiz/.env" ]]; then
   DATABASE_URL="$(grep -E '^DATABASE_URL=' "$raiz/.env" | tail -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//')"
 fi

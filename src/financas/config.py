@@ -64,6 +64,15 @@ class Settings(BaseSettings):
     llm_modelo: str = "claude-opus-5-5"
     anthropic_api_key: SecretStr | None = None
 
+    @field_validator(
+        "telegram_bot_token", "telegram_bot_username", "telegram_webhook_url",
+        "openai_api_key", "anthropic_api_key", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _vazio_e_ausente(cls, v: object) -> object:
+        """``CHAVE=`` no .env significa "não configurado", não string vazia."""
+        return None if isinstance(v, str) and not v.strip() else v
+
     @field_validator("telegram_chats_permitidos", mode="before")
     @classmethod
     def _lista_ids(cls, v: object) -> object:

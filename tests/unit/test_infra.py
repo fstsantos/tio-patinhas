@@ -50,3 +50,10 @@ def test_formatador_json_mascara_campos_extras() -> None:
     assert dados["msg"] == "login ok"
     assert dados["senha"] == "***"
     assert dados["membro_id"] == 7
+
+
+def test_variaveis_vazias_sao_ausentes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "  ")
+    cfg = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert cfg.telegram_bot_token is None and cfg.anthropic_api_key is None

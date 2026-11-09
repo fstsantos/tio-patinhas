@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}{{ acao | capitalize }} #{{ lanc.id }}{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>{% if acao == 'cancelar' %}Cancelar{% else %}Restaurar{% endif %} lançamento #{{ lanc.id }}?</h1>
+  <p><strong>{{ lanc.tipo | tipo }} {{ lanc.valor_total | brl }}</strong> · {{ lanc.descricao }} · {{ lanc.data_operacao | data }}</p>
+  {% if lanc.tipo == 'CREDITO' %}<p class="aviso info">{% if acao == 'cancelar' %}Todas as {{ lanc.qtd_parcelas }} parcelas também serão canceladas.{% else %}As parcelas da revisão mais recente voltarão a ficar pendentes.{% endif %}</p>{% endif %}
+  {% if erro %}<div class="aviso erro" role="alert">{{ erro }}</div>{% endif %}
+  <form method="post" class="formulario">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="revisao" value="{{ lanc.revisao }}">
+    <label>Motivo {% if acao == 'restaurar' %}(obrigatório){% else %}(opcional){% endif %}
+      <input name="motivo" maxlength="300" value="{{ motivo or '' }}" {% if acao == 'restaurar' %}required{% endif %}>
+    </label>
+    <div class="acoes">
+      <button class="botao {% if acao == 'cancelar' %}perigo{% else %}primario{% endif %}" type="submit">Confirmar</button>
+      <a class="botao" href="/lancamentos/{{ lanc.id }}">Voltar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

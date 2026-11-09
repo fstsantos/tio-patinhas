@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titulo %}Entrar{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito login">
+  <h1>🦆 Tio Patinhas</h1>
+  <p class="sutil">Finanças da família</p>
+  {% if erro %}<div class="aviso erro" role="alert">{{ erro }}</div>{% endif %}
+  <form method="post" action="/login" class="formulario">
+    <input type="hidden" name="csrf_token" value="{{ csrf_login }}">
+    <input type="hidden" name="proximo" value="{{ proximo }}">
+    <label>Login
+      <input name="login" value="{{ login }}" autocomplete="username" required autofocus>
+    </label>
+    <label>Senha
+      <input name="senha" type="password" autocomplete="current-password" required>
+    </label>
+    <button class="botao primario" type="submit">Entrar</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>{% block titulo %}Tio Patinhas{% endblock %} · Tio Patinhas</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js" defer></script>
+  {% block cabecalho %}{% endblock %}
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+{% if usuario %}
+<header class="topo">
+  <div class="topo-interno">
+    <a class="marca" href="/">🦆 Tio Patinhas</a>
+    <nav aria-label="Principal">
+      <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Dashboard</a>
+      <a href="/lancamentos" {% if request.url.path.startswith('/lancamentos') %}aria-current="page"{% endif %}>Lançamentos</a>
+      {% if usuario.eh_admin %}
+      <a href="/membros" {% if request.url.path.startswith('/membros') %}aria-current="page"{% endif %}>Membros</a>
+      <a href="/categorias" {% if request.url.path.startswith('/categorias') %}aria-current="page"{% endif %}>Categorias</a>
+      {% endif %}
+    </nav>
+    <div class="conta">
+      <span>{{ usuario.membro.nome }}{% if usuario.eh_admin %} <small class="selo">admin</small>{% endif %}</span>
+      <form method="post" action="/sair">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="botao-link" type="submit">Sair</button>
+      </form>
+    </div>
+  </div>
+</header>
+{% endif %}
+<main id="conteudo" class="conteudo">
+  {% if mensagem %}<div class="aviso sucesso" role="status">{{ mensagem }}</div>{% endif %}
+  {% block conteudo %}{% endblock %}
+</main>
+</body>
+</html>

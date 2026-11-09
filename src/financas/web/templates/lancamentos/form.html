@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% set v = form.valores %}
+{% block titulo %}{% if lancamento %}Editar #{{ lancamento.id }}{% else %}Novo lançamento{% endif %}{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>{% if lancamento %}Editar lançamento #{{ lancamento.id }}{% else %}Novo lançamento{% endif %}</h1>
+  {% if form.erro_geral %}<div class="aviso erro" role="alert">{{ form.erro_geral }}</div>{% endif %}
+  <form method="post" class="formulario" action="{% if lancamento %}/lancamentos/{{ lancamento.id }}/editar{% else %}/lancamentos{% endif %}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    {% if lancamento %}<input type="hidden" name="revisao" value="{{ v.revisao }}">{% endif %}
+    <fieldset {% if lancamento %}disabled{% endif %}>
+      <legend>Tipo</legend>
+      <div class="opcoes">
+      {% for t, n in [('DEBITO','Débito (à vista)'),('CREDITO','Crédito (parcelado)'),('RECEITA','Receita')] %}
+        <label class="opcao"><input type="radio" name="tipo" value="{{ t }}" {% if v.tipo == t %}checked{% endif %} data-alterna-parcelas> {{ n }}</label>
+      {% endfor %}
+      </div>
+      {% if form.erros.tipo %}<p class="erro-campo">{{ form.erros.tipo }}</p>{% endif %}
+    </fieldset>
+    <label>Valor {% if v.tipo == 'CREDITO' %}total da compra{% endif %} (R$)
+      <input name="valor" inputmode="decimal" value="{{ v.valor }}" placeholder="10,50" required aria-invalid="{{ 'true' if form.erros.valor else 'false' }}" aria-describedby="ajuda-valor">
+      <small id="ajuda-valor" class="sutil">Vírgula nos centavos; ponto só para milhar (1.234,56).</small>
+      {% if form.erros.valor %}<span class="erro-campo">{{ form.erros.valor }}</span>{% endif %}
+    </label>
+    <label data-parcelas {% if v.tipo != 'CREDITO' %}hidden{% endif %}>Parcelas (1 a 48)
+      <input name="parcelas" type="number" min="1" max="48" value="{{ v.parcelas }}">
+      <small class="sutil">A 1ª parcela pertence ao mês seguinte ao da compra.</small>
+      {% if form.erros.parcelas %}<span class="erro-campo">{{ form.erros.parcelas }}</span>{% endif %}
+    </label>
+    <label>Descrição
+      <input name="descricao" maxlength="120" value="{{ v.descricao }}" required>
+      {% if form.erros.descricao %}<span class="erro-campo">{{ form.erros.descricao }}</span>{% endif %}
+    </label>
+    <label>Data
+      <input name="data" type="date" max="{{ hoje.isoformat() }}" value="{{ v.data }}" required>
+      {% if form.erros.data %}<span class="erro-campo">{{ form.erros.data }}</span>{% endif %}
+    </label>
+    <label>Categoria (opcional)
+      <select name="categoria"><option value="">Sem categoria</option>
+        {% for c in categorias if c.ativa or v.categoria == c.id|string %}<option value="{{ c.id }}" {% if v.categoria == c.id|string %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    {% if usuario.eh_admin and not lancamento %}
+    <label>Titular
+      <select name="titular">{% for m in membros if m.ativo %}<option value="{{ m.id }}" {% if v.titular == m.id|string %}selected{% endif %}>{{ m.nome }}</option>{% endfor %}</select>
+    </label>
+    {% endif %}
+    {% if lancamento %}
+    <label>Motivo da alteração (opcional)<input name="motivo" maxlength="300" value="{{ v.motivo }}"></label>
+    {% if lancamento.tipo == 'CREDITO' %}<p class="aviso info">Alterar valor, data ou parcelas substitui as parcelas atuais por uma nova revisão (o histórico é preservado).</p>{% endif %}
+    {% endif %}
+    <div class="acoes">
+      <button class="botao primario" type="submit">Salvar</button>
+      <a class="botao" href="{% if lancamento %}/lancamentos/{{ lancamento.id }}{% else %}/lancamentos{% endif %}">Voltar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

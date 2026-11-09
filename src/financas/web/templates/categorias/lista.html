@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block titulo %}Categorias{% endblock %}
+{% block conteudo %}
+<h1>Categorias</h1>
+<p class="sutil">Categorias são opcionais nos lançamentos.</p>
+{% if erro %}<div class="aviso erro" role="alert">{{ erro }}</div>{% endif %}
+<section class="cartao">
+  <h2>Nova categoria</h2>
+  <form method="post" action="/categorias" class="filtros">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label>Nome <input name="nome" maxlength="60" required></label>
+    <label>Tipo <select name="tipo">{% for t in tipos %}<option value="{{ t.value }}">{{ {'RECEITA':'Receita','DESPESA':'Despesa','AMBAS':'Ambas'}[t.value] }}</option>{% endfor %}</select></label>
+    <button class="botao primario" type="submit">Adicionar</button>
+  </form>
+</section>
+<section class="cartao">
+  <h2>Cadastradas</h2>
+  {% if categorias %}
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th>Nome</th><th>Tipo</th><th>Ativa</th><th></th></tr></thead>
+    <tbody>{% for c in categorias %}<tr>
+      <td colspan="4">
+        <form method="post" action="/categorias/{{ c.id }}" class="linha-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <input name="nome" value="{{ c.nome }}" maxlength="60" aria-label="Nome" required>
+          <select name="tipo" aria-label="Tipo">{% for t in tipos %}<option value="{{ t.value }}" {% if c.tipo == t.value %}selected{% endif %}>{{ {'RECEITA':'Receita','DESPESA':'Despesa','AMBAS':'Ambas'}[t.value] }}</option>{% endfor %}</select>
+          <label class="opcao"><input type="checkbox" name="ativa" value="1" {% if c.ativa %}checked{% endif %}> Ativa</label>
+          <button class="botao" type="submit">Salvar</button>
+        </form>
+      </td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="vazio">Nenhuma categoria cadastrada.</p>{% endif %}
+</section>
+{% endblock %}

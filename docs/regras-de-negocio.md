@@ -70,5 +70,49 @@ existentes e retorna código 1 se houver problemas.
 (`parcelas.revisao_lancamento` = revisão do lançamento quando as parcelas foram geradas).
 Reparcelar marca as vigentes como `SUBSTITUIDA` e gera novas com a nova revisão.
 
-> Seções de cancelamento, edição, restauração e relatórios serão detalhadas nas
-> etapas 3 e 4, junto com a implementação dos serviços.
+## Cancelamento, edição e restauração (`services/lancamentos.py`)
+
+- Nada é excluído fisicamente. Cancelar marca o lançamento como `CANCELADO` (com data,
+  autor e motivo) e, numa compra, todas as parcelas vigentes como `CANCELADA`, na
+  mesma transação.
+- **Editar** (somente lançamentos ativos; o tipo não muda):
+  - descrição/categoria → altera só o lançamento;
+  - valor, data ou parcelas de uma compra → parcelas vigentes viram `SUBSTITUIDA` e
+    uma nova revisão de parcelas é gerada.
+  - A edição informa a revisão lida (`revisao_esperada`); se outra pessoa alterou
+    antes, a operação falha com conflito (controle otimista).
+- **Restaurar:** somente admin, com motivo obrigatório; reativa o lançamento e as
+  parcelas da revisão mais recente.
+- Toda criação, edição, cancelamento e restauração grava auditoria com autor, origem,
+  motivo e fotos antes/depois (inclusive parcelas).
+- Permissões (`services/autorizacao.py`): membro cria e altera só os próprios
+  lançamentos (titular); admin, qualquer um e em nome de qualquer membro ativo.
+
+## Relatórios (`services/relatorios.py`)
+
+- Sempre recalculados do estado atual; só lançamentos ativos e parcelas pendentes.
+- **Resumo mensal:** receitas, débitos e parcelas com mês de referência no mês; saldo
+  e orçamento diário pela fórmula acima; compras no crédito feitas no mês aparecem só
+  como informação (total contratado e impacto por mês seguinte); despesas (débitos +
+  parcelas do mês) agrupadas por categoria (quando houver alguma) e por descrição
+  normalizada.
+- **Resumo anual:** os 12 meses (mesmo sem lançamentos), cada um com
+  `calcular_orcamento`; saldo acumulado começa em zero em janeiro.
+- **Resumo de crédito:** parcelas pendentes do mês corrente em diante, por mês.
+- Filtro opcional por membro (titular).
+
+## Bot: idempotência, confirmações e voz
+
+- Cada comando que altera estado grava `(chat_id, message_id)` na mesma transação; um
+  reenvio recebe a mesma resposta sem duplicar.
+- `cancelar` e `desfazer` pedem confirmação por botão; `desfazer` só alcança o último
+  lançamento ativo do próprio membro criado há até 10 minutos.
+- Confirmações valem 5 minutos, só o autor responde, e a transição `PENDENTE →
+  EXECUTADA` é um `UPDATE` condicional atômico (execução única sob concorrência).
+- Mensagens editadas não alteram lançamentos; o bot orienta a cancelar e registrar de
+  novo (só responde se o texto editado for um comando).
+- Voz: transcrição → números falados → mesmo parser → extração determinística →
+  LLM opcional (só propõe; a proposta passa pelo mesmo parser) → confirmação. A
+  ambiguidade "valor da parcela × total" nunca é resolvida pela LLM: exige o usuário.
+- Consultas por voz (ex.: "resumo crédito") são respondidas sem confirmação, pois não
+  registram nada.

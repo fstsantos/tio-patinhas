@@ -215,8 +215,8 @@ def criar_app(
             request, "erro.html", None, status=404, titulo="Não encontrado", detalhe=e.mensagem
         )
 
-    @app.get("/saude", include_in_schema=False)
-    async def saude() -> dict[str, str]:
+    @app.get("/health", include_in_schema=False)
+    async def health() -> dict[str, str]:
         return {"status": "ok"}
 
     from financas.web.routes import auth, categorias, dashboard, lancamentos, membros  # noqa: PLC0415

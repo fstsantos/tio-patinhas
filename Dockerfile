@@ -22,6 +22,6 @@ USER financas
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/saude', timeout=4)" || exit 1
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)" || exit 1
 CMD ["uvicorn", "financas.web.app:criar_app", "--factory", "--host", "0.0.0.0", "--port", "8000", \
      "--proxy-headers", "--no-server-header"]

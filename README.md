@@ -57,7 +57,7 @@ o conteúdo seja registrado nos logs.
 ### Execução
 
 ```bash
-uv sync --extra voz            # inclui faster-whisper (transcrição local)
+uv sync --extra voz --extra llm   # faster-whisper (voz) e SDK da Anthropic (LLM opcional)
 uv run python -m financas.bot.app
 ```
 
@@ -129,4 +129,70 @@ src/financas/
 docs/                # regras de negócio e ADRs
 ```
 
-Documentação das regras: [`docs/regras-de-negocio.md`](docs/regras-de-negocio.md).
+## Execução com Docker
+
+```bash
+cp .env.example .env               # preencha as variáveis
+docker compose up -d --build       # db → migrate → web + bot
+docker compose run --rm web financas criar-admin --telegram-id <id>
+```
+
+Web em http://127.0.0.1:8000. Detalhes de ambientes, logs, backup e credenciais em
+[`docs/operacao.md`](docs/operacao.md).
+
+## Testes
+
+```bash
+uv run pytest                      # unitários + integração (PostgreSQL real)
+make check                         # ruff + mypy + cobertura
+make test-docker                   # contra o PostgreSQL isolado do compose.test.yaml
+FINANCAS_TESTE_WHISPER=1 uv run pytest tests/unit/integrations  # baixa e roda o modelo tiny
+```
+
+Os testes não usam serviços externos reais (Telegram, OpenAI e Anthropic são simulados).
+
+## Logs, backup e restauração
+
+Logs em JSON no stdout, com segredos mascarados. Backup: `scripts/backup.sh`;
+restauração: `scripts/restore.sh <arquivo> --sim` seguida de
+`financas verificar-integridade`. Ver [`docs/operacao.md`](docs/operacao.md).
+
+## APIs externas
+
+| Serviço | Uso | Obrigatório |
+| --- | --- | --- |
+| Telegram Bot API | bot | sim |
+| faster-whisper (local; baixa o modelo do Hugging Face na 1ª vez) | transcrição padrão | para voz |
+| OpenAI (transcrição) | `STT_PROVEDOR=openai` | não |
+| Anthropic (Claude) | `LLM_PROVEDOR=anthropic`: propõe comandos de voz que o parser não entendeu; nunca grava nada | não |
+
+Nenhuma regra financeira depende de LLM. A LLM recebe só a transcrição do áudio.
+
+## Implantação em nuvem
+
+Ver [`docs/nuvem.md`](docs/nuvem.md): webhook no lugar de polling, PostgreSQL
+gerenciado e segredos no gerenciador da plataforma.
+
+## Limitações conhecidas
+
+- O mês de referência das parcelas é sempre o mês seguinte ao da compra; compras após o
+  fechamento real do cartão podem, na fatura, cair em M + 2.
+- Não há controle de pagamentos (parcela "paga"), saldo bancário nem transporte de
+  saldo entre meses.
+- Parcelas individuais não são editáveis nem canceláveis.
+- Perguntas de esclarecimento da voz não guardam contexto: reenvie o comando completo.
+- Datas futuras não são aceitas (débito, ganho e crédito).
+
+## Funcionalidades futuras
+
+Análises por LLM sobre dados agregados (`integrations/llm/contexto_agregado.py` já
+produz o contexto anonimizado), categorização sugerida, metas e simulações de orçamento,
+despesas recorrentes, perguntas em linguagem natural.
+
+## Documentação
+
+- [`docs/regras-de-negocio.md`](docs/regras-de-negocio.md) — regras financeiras
+- [`docs/arquitetura.md`](docs/arquitetura.md) — camadas e decisões
+- [`docs/operacao.md`](docs/operacao.md) — ambientes, logs, backup, credenciais
+- [`docs/nuvem.md`](docs/nuvem.md) — implantação em nuvem
+- [`docs/adr/`](docs/adr/) — registros de decisão

@@ -1,8 +1,9 @@
-# Execução local: PostgreSQL + web + bot (mesma imagem).
+# Execução local: PostgreSQL + migração + web + bot (mesma imagem).
 name: tio-patinhas
 
 x-app: &app
   build: .
+  image: tio-patinhas:local
   env_file: .env
   environment:
     DATABASE_URL: postgresql+psycopg://financas:${POSTGRES_PASSWORD:?defina no .env}@db:5432/financas
@@ -48,6 +49,11 @@ services:
   bot:
     <<: *app
     command: ["python", "-m", "financas.bot.app"]
+    healthcheck:
+      disable: true
+    volumes:
+      - modelos:/home/financas/.cache/huggingface
 
 volumes:
   pgdata:
+  modelos:

@@ -17,9 +17,12 @@ Nunca aponte `TEST_DATABASE_URL` para um banco real: os testes apagam o esquema.
 
 ```bash
 cp .env.example .env              # preencha POSTGRES_PASSWORD, TELEGRAM_*, WEB_SECRET_KEY
-docker compose up -d --build      # db → migrate → web + bot
-docker compose run --rm web financas criar-admin --telegram-id <seu id>
+make up                           # db → migrate → web + bot
+make criar-admin DOCKER=1 ARGS="--telegram-id <seu id>"
 ```
+
+`DOCKER=1` faz `migrate`, `migrate-down`, `criar-admin`, `integridade`, `backup` e
+`restore` usarem os contêineres (sem `make`: `docker compose run --rm web financas …`).
 
 Sem Docker: `uv sync --extra voz`, `uv run alembic upgrade head`,
 `uv run financas criar-admin`, `make web` e `make bot`.
@@ -39,11 +42,15 @@ Sem Docker: `uv sync --extra voz`, `uv run alembic upgrade head`,
 ## Backup e restauração
 
 ```bash
-scripts/backup.sh                       # usa DATABASE_URL (ou .env) e pg_dump local
-BACKUP_VIA_DOCKER=1 scripts/backup.sh   # usa o pg_dump do contêiner db
-scripts/restore.sh backups/financas-AAAAMMDDTHHMMSSZ.dump --sim
-uv run financas verificar-integridade
+make backup DOCKER=1                    # pg_dump do contêiner db → ./backups
+make restore DOCKER=1 ARQUIVO=backups/financas-AAAAMMDDTHHMMSSZ.dump
+# sem Docker: make backup / make restore ARQUIVO=… (pg_dump/pg_restore locais)
 ```
+
+- `make restore DOCKER=1` para web e bot, restaura (`RESTORE_VIA_DOCKER=1
+  scripts/restore.sh … --sim`), roda `verificar-integridade` e religa os serviços. Se
+  algum passo falhar, web e bot ficam parados até você investigar
+  (`docker compose start web bot`).
 
 - Formato custom do `pg_dump`, arquivo com permissão 600, verificado com
   `pg_restore --list` antes de ser promovido; retenção `BACKUP_RETENCAO_DIAS` (30).

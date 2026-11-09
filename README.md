@@ -21,7 +21,7 @@ uv run pytest           # testes (PostgreSQL embutido se TEST_DATABASE_URL não 
 make check              # ruff + mypy + testes com cobertura
 ```
 
-Sem `make`, use os comandos do `Makefile` diretamente (`uv run ruff check ...`).
+Rode `make help` para ver os alvos. Sem `make`, use os comandos do `Makefile` diretamente.
 
 ## Banco de dados e migrações
 
@@ -133,9 +133,13 @@ docs/                # regras de negócio e ADRs
 
 ```bash
 cp .env.example .env               # preencha as variáveis
-docker compose up -d --build       # db → migrate → web + bot
-docker compose run --rm web financas criar-admin --telegram-id <id>
+make up                            # docker compose up -d --build: db → migrate → web + bot
+make criar-admin DOCKER=1 ARGS="--telegram-id <id>"
 ```
+
+Com `DOCKER=1`, os alvos `migrate`, `migrate-down`, `criar-admin`, `integridade`,
+`backup` e `restore` rodam na stack do Compose em vez do `uv` local (ex.:
+`make backup DOCKER=1`, `make restore DOCKER=1 ARQUIVO=backups/<arquivo>.dump`).
 
 Web em http://127.0.0.1:8000. Detalhes de ambientes, logs, backup e credenciais em
 [`docs/operacao.md`](docs/operacao.md).

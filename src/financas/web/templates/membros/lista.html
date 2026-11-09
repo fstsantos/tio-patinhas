@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Membros{% endblock %}
+{% block conteudo %}
+<div class="titulo-pagina"><h1>Membros</h1><a class="botao primario" href="/membros/novo">+ Novo membro</a></div>
+<div class="rolagem"><table class="tabela">
+  <thead><tr><th>Nome</th><th>Papel</th><th>Situação</th><th>Bot do Telegram</th><th>Login web</th></tr></thead>
+  <tbody>{% for m in membros %}<tr class="{% if not m.ativo %}linha-cancelada{% endif %}">
+    <td><a href="/membros/{{ m.id }}">{{ m.nome }}</a></td>
+    <td>{{ 'Administrador' if m.papel == 'admin' else 'Membro' }}</td>
+    <td>{% if m.ativo %}<span class="etiqueta receita">Ativo</span>{% else %}<span class="etiqueta cancelado">Inativo</span>{% endif %}</td>
+    <td>{% if m.ativo and m.telegram_user_id %}<span class="etiqueta receita">Habilitado</span> <small class="sutil">id {{ m.telegram_user_id }}</small>{% elif m.telegram_user_id %}<span class="etiqueta cancelado">Bloqueado (inativo)</span>{% else %}<span class="etiqueta neutra">Sem vínculo</span>{% endif %}</td>
+    <td>{{ m.login_web or '—' }}</td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

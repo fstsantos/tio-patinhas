@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Lançamentos{% endblock %}
+{% block conteudo %}
+<div class="titulo-pagina">
+  <h1>Lançamentos</h1>
+  <a class="botao primario" href="/lancamentos/novo">+ Novo lançamento</a>
+</div>
+<form class="filtros cartao" method="get" action="/lancamentos"
+      hx-get="/lancamentos" hx-target="#tabela" hx-trigger="change, submit, keyup changed delay:400ms from:input[type=search]" hx-push-url="true">
+  <label>Busca <input type="search" name="texto" value="{{ filtro.texto }}" placeholder="descrição"></label>
+  <label>Tipo
+    <select name="tipo"><option value="">Todos</option>
+      {% for t, n in [('DEBITO','Débito'),('CREDITO','Crédito'),('RECEITA','Receita')] %}<option value="{{ t }}" {% if filtro.tipo == t %}selected{% endif %}>{{ n }}</option>{% endfor %}
+    </select></label>
+  <label>Membro
+    <select name="membro"><option value="">Todos</option>
+      {% for m in membros %}<option value="{{ m.id }}" {% if filtro.membro == m.id|string %}selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+    </select></label>
+  <label>Categoria
+    <select name="categoria"><option value="">Todas</option>
+      {% for c in categorias %}<option value="{{ c.id }}" {% if filtro.categoria == c.id|string %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+    </select></label>
+  <label>De <input type="date" name="de" value="{{ filtro.de }}"></label>
+  <label>Até <input type="date" name="ate" value="{{ filtro.ate }}"></label>
+  <label>Valor mín. <input name="valor_min" inputmode="decimal" value="{{ filtro.valor_min }}" placeholder="0,00" size="8"></label>
+  <label>Valor máx. <input name="valor_max" inputmode="decimal" value="{{ filtro.valor_max }}" placeholder="0,00" size="8"></label>
+  {% if usuario.eh_admin %}
+  <label>Situação
+    <select name="status">
+      {% for s, n in [('ATIVO','Ativos'),('CANCELADO','Cancelados'),('TODOS','Todos')] %}<option value="{{ s }}" {% if filtro.status == s %}selected{% endif %}>{{ n }}</option>{% endfor %}
+    </select></label>
+  {% endif %}
+  <button class="botao" type="submit">Filtrar</button>
+</form>
+<div id="tabela">{% include "lancamentos/_tabela.html" %}</div>
+{% endblock %}

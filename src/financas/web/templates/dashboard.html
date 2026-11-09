@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block titulo %}Dashboard{% endblock %}
+{% block cabecalho %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>{% endblock %}
+{% block conteudo %}
+{% set o = resumo.orcamento %}
+<div class="titulo-pagina">
+  <h1>{{ o.mes.por_extenso | capitalize }}</h1>
+  <form class="filtros" method="get" action="/">
+    <label>Mês <input type="month" name="mes" value="{{ '%04d-%02d' % (mes.ano, mes.mes) }}"></label>
+    <label>Membro
+      <select name="membro">
+        <option value="">Família toda</option>
+        {% for m in membros %}<option value="{{ m.id }}" {% if m.id == membro_id %}selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="botao" type="submit">Aplicar</button>
+  </form>
+</div>
+
+<section class="indicadores" aria-label="Indicadores do mês">
+  <div class="indicador receita"><span>Receitas</span><strong>{{ o.receitas | brl }}</strong></div>
+  <div class="indicador realizado"><span>Despesas à vista</span><strong>{{ o.debitos | brl }}</strong></div>
+  <div class="indicador previsto"><span>Parcelas do mês</span><strong>{{ o.parcelas | brl }}</strong></div>
+  <div class="indicador {% if o.deficit %}negativo{% else %}saldo{% endif %}">
+    <span>Saldo do mês</span><strong>{{ o.saldo | brl }}</strong>
+    {% if o.deficit %}<small>Déficit</small>{% endif %}
+  </div>
+  <div class="indicador">
+    {% if o.orcamento_diario is none %}
+      <span>Mês encerrado</span><strong>{{ o.saldo | brl }}</strong><small>saldo final</small>
+    {% else %}
+      <span>Orçamento diário</span><strong>{{ o.orcamento_diario | brl }}</strong>
+      <small>{{ o.dias_restantes }} dia(s) restante(s), incluindo hoje</small>
+    {% endif %}
+  </div>
+</section>
+
+<div class="grade">
+  <section class="cartao">
+    <h2>Comparação com {{ anterior.orcamento.mes.abreviado }}</h2>
+    <table class="tabela compacta">
+      <thead><tr><th></th><th class="num">{{ anterior.orcamento.mes.abreviado }}</th><th class="num">{{ o.mes.abreviado }}</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Receitas</th><td class="num">{{ anterior.orcamento.receitas | brl }}</td><td class="num">{{ o.receitas | brl }}</td></tr>
+        <tr><th scope="row">Despesas consideradas</th><td class="num">{{ anterior.orcamento.despesas_consideradas | brl }}</td><td class="num">{{ o.despesas_consideradas | brl }}</td></tr>
+        <tr><th scope="row">Saldo</th><td class="num">{{ anterior.orcamento.saldo | brl }}</td><td class="num">{{ o.saldo | brl }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="cartao informativo">
+    <h2>Compras no crédito feitas neste mês</h2>
+    <p class="sutil">Informativo: não entram no saldo; a 1ª parcela é do mês seguinte.</p>
+    {% if resumo.compras_credito %}
+      <p class="destaque">{{ resumo.total_credito_contratado | brl }} <small>em {{ resumo.compras_credito | length }} compra(s)</small></p>
+      <ul class="lista-simples">{% for m, v in resumo.impacto_futuro[:6] %}<li>{{ m.abreviado }} <span>{{ v | brl }}</span></li>{% endfor %}</ul>
+    {% else %}<p class="vazio">Nenhuma compra no crédito neste mês.</p>{% endif %}
+  </section>
+</div>
+
+<div id="graficos" data-graficos="{{ graficos }}"></div>
+<div class="grade">
+  <section class="cartao"><h2>Evolução de {{ anual.ano }}</h2><div class="grafico"><canvas id="g-evolucao" aria-label="Receitas e despesas por mês" role="img"></canvas></div></section>
+  <section class="cartao"><h2>Tendência do saldo acumulado</h2><div class="grafico"><canvas id="g-acumulado" aria-label="Saldo acumulado no ano" role="img"></canvas></div>
+    <p class="sutil">Começa em zero em janeiro; não é saldo bancário.</p></section>
+</div>
+<div class="grade">
+  <section class="cartao">
+    <h2>Despesas do mês por {% if resumo.por_categoria %}categoria{% else %}descrição{% endif %}</h2>
+    {% set grupos = resumo.por_categoria or resumo.por_descricao %}
+    {% if grupos %}
+      <div class="grafico baixo"><canvas id="g-distribuicao" aria-label="Distribuição das despesas" role="img"></canvas></div>
+      <table class="tabela compacta"><tbody>{% for g in grupos[:10] %}<tr><td>{{ g.nome }}</td><td class="num">{{ g.total | brl }}</td></tr>{% endfor %}</tbody></table>
+    {% else %}<p class="vazio">Sem despesas neste mês.</p>{% endif %}
+  </section>
+  <section class="cartao previsto-borda">
+    <h2>Compromissos futuros (parcelas pendentes)</h2>
+    {% if credito.blocos %}
+      <div class="grafico baixo"><canvas id="g-compromissos" aria-label="Parcelas pendentes por mês" role="img"></canvas></div>
+      <p>Total pendente: <strong>{{ credito.total | brl }}</strong></p>
+    {% else %}<p class="vazio">Nenhuma parcela pendente.</p>{% endif %}
+  </section>
+</div>
+
+<section class="cartao">
+  <h2>Parcelas consideradas em {{ o.mes.abreviado }}</h2>
+  {% if resumo.parcelas %}
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th>Compra</th><th>Parcela</th><th>Data da compra</th><th>Membro</th><th class="num">Valor</th></tr></thead>
+    <tbody>{% for p in resumo.parcelas %}<tr class="linha-prevista">
+      <td><a href="/lancamentos/{{ p.lancamento_id }}">{{ p.descricao }}</a></td><td>{{ p.numero }}/{{ p.total_parcelas }}</td>
+      <td>{{ p.data_compra | data }}</td><td>{{ p.membro }}</td><td class="num">{{ p.valor | brl }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="vazio">Nenhuma parcela neste mês.</p>{% endif %}
+</section>
+<section class="cartao">
+  <h2>Receitas consideradas</h2>
+  {% if resumo.receitas %}
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th>Descrição</th><th>Data</th><th>Membro</th><th class="num">Valor</th></tr></thead>
+    <tbody>{% for r in resumo.receitas %}<tr><td><a href="/lancamentos/{{ r.id }}">{{ r.descricao }}</a></td><td>{{ r.data | data }}</td><td>{{ r.membro }}</td><td class="num">{{ r.valor | brl }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="vazio">Nenhuma receita neste mês.</p>{% endif %}
+</section>
+{% endblock %}

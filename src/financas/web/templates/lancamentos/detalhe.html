@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titulo %}Lançamento #{{ lanc.id }}{% endblock %}
+{% block conteudo %}
+<div class="titulo-pagina">
+  <h1>{{ lanc.tipo | tipo }} #{{ lanc.id }} {% if lanc.status == 'CANCELADO' %}<span class="etiqueta cancelado">Cancelado</span>{% endif %}</h1>
+  <div class="acoes">
+    {% if pode_alterar and lanc.status == 'ATIVO' %}
+      <a class="botao" href="/lancamentos/{{ lanc.id }}/editar">Editar</a>
+      <a class="botao perigo" href="/lancamentos/{{ lanc.id }}/cancelar">Cancelar lançamento</a>
+    {% endif %}
+    {% if usuario.eh_admin and lanc.status == 'CANCELADO' %}
+      <a class="botao" href="/lancamentos/{{ lanc.id }}/restaurar">Restaurar</a>
+    {% endif %}
+  </div>
+</div>
+<section class="cartao {% if lanc.status == 'CANCELADO' %}cancelado-borda{% endif %}">
+  <dl class="detalhes">
+    <dt>Valor{% if lanc.tipo == 'CREDITO' %} total{% endif %}</dt><dd class="destaque">{{ lanc.valor_total | brl }}</dd>
+    <dt>Descrição</dt><dd>{{ lanc.descricao }}</dd>
+    <dt>Data</dt><dd>{{ lanc.data_operacao | data }}</dd>
+    {% if lanc.qtd_parcelas %}<dt>Parcelas</dt><dd>{{ lanc.qtd_parcelas }}x</dd>{% endif %}
+    <dt>Categoria</dt><dd>{{ categoria or '—' }}</dd>
+    <dt>Titular</dt><dd>{{ titular.nome }}</dd>
+    <dt>Registrado por</dt><dd>{{ autor.nome }}</dd>
+    <dt>Origem</dt><dd>{{ lanc.origem | origem }}</dd>
+    <dt>Revisão</dt><dd>{{ lanc.revisao }}</dd>
+    {% if lanc.status == 'CANCELADO' %}
+      <dt>Cancelado em</dt><dd>{{ lanc.cancelado_em | datahora }} por {{ nomes.get(lanc.cancelado_por, '—') }}</dd>
+      <dt>Motivo</dt><dd>{{ lanc.motivo_cancelamento or '—' }}</dd>
+    {% endif %}
+  </dl>
+</section>
+{% if lanc.tipo == 'CREDITO' %}
+<section class="cartao previsto-borda">
+  <h2>Parcelas vigentes</h2>
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th>Parcela</th><th>Mês de referência</th><th>Situação</th><th class="num">Valor</th></tr></thead>
+    <tbody>{% for p in vigentes %}<tr class="{% if p.status == 'CANCELADA' %}linha-cancelada{% else %}linha-prevista{% endif %}">
+      <td>{{ p.numero }}/{{ lanc.qtd_parcelas }}</td><td>{{ p.competencia | mes }}</td>
+      <td><span class="etiqueta {{ 'cancelado' if p.status == 'CANCELADA' else 'previsto' }}">{{ 'Cancelada' if p.status == 'CANCELADA' else 'Pendente' }}</span></td>
+      <td class="num">{{ p.valor | brl }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% for revisao, parcelas in revisoes %}
+<details class="cartao substituido-borda">
+  <summary>Revisão {{ revisao }} — {{ parcelas | length }} parcelas substituídas</summary>
+  <table class="tabela compacta"><tbody>{% for p in parcelas %}<tr class="linha-substituida"><td>{{ p.numero }}</td><td>{{ p.competencia | mes }}</td><td class="num">{{ p.valor | brl }}</td></tr>{% endfor %}</tbody></table>
+</details>
+{% endfor %}
+{% endif %}
+{% if historico is not none %}
+<section class="cartao">
+  <h2>Histórico de alterações</h2>
+  <ol class="historico">
+  {% for h in historico %}
+    <li><strong>{{ h.acao | capitalize }}</strong> em {{ h.created_at | datahora }} por {{ nomes.get(h.autor_id, '—') }} · {{ h.origem | origem }}{% if h.motivo %} · motivo: {{ h.motivo }}{% endif %}
+      {% if h.dados_antes and h.dados_depois %}
+        <ul class="diferencas">{% for k, novo in h.dados_depois.items() if k != 'parcelas' and h.dados_antes.get(k) != novo and k not in ('revisao',) %}<li><code>{{ k }}</code>: {{ h.dados_antes.get(k) }} → {{ novo }}</li>{% endfor %}</ul>
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+{% endif %}
+<p><a href="/lancamentos">‹ Voltar para lançamentos</a></p>
+{% endblock %}

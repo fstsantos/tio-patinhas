@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titulo %}{% if membro %}{{ membro.nome }}{% else %}Novo membro{% endif %}{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>{% if membro %}Editar {{ membro.nome }}{% else %}Novo membro{% endif %}</h1>
+  {% if erro %}<div class="aviso erro" role="alert">{{ erro }}</div>{% endif %}
+  <form method="post" class="formulario" action="{% if membro %}/membros/{{ membro.id }}{% else %}/membros{% endif %}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label>Nome <input name="nome" maxlength="100" value="{{ valores.nome }}" required></label>
+    <label>Id numérico do Telegram
+      <input name="telegram" inputmode="numeric" value="{{ valores.telegram }}">
+      <small class="sutil">Obrigatório para usar o bot. Descubra com @userinfobot. Opcional só para administrador exclusivamente web.</small>
+    </label>
+    <label>Papel
+      <select name="papel">
+        <option value="membro" {% if valores.papel == 'membro' %}selected{% endif %}>Membro</option>
+        <option value="admin" {% if valores.papel == 'admin' %}selected{% endif %}>Administrador</option>
+      </select>
+    </label>
+    <label class="opcao"><input type="checkbox" name="ativo" value="1" {% if valores.ativo %}checked{% endif %}> Ativo (pode usar o bot e a web)</label>
+    <fieldset>
+      <legend>Acesso web (opcional)</legend>
+      <label>Login <input name="login" maxlength="60" value="{{ valores.login }}" autocomplete="off"></label>
+      <label>{% if membro and membro.senha_hash %}Nova senha (deixe em branco para manter){% else %}Senha{% endif %}
+        <input name="senha" type="password" minlength="10" autocomplete="new-password"></label>
+      <small class="sutil">Mínimo de 10 caracteres. Sem login, o acesso web é removido.</small>
+    </fieldset>
+    <p class="sutil">Desativar um membro nunca apaga seus lançamentos nem seu histórico; as sessões web dele são encerradas.</p>
+    <div class="acoes"><button class="botao primario" type="submit">Salvar</button><a class="botao" href="/membros">Voltar</a></div>
+  </form>
+</section>
+{% endblock %}

@@ -3,8 +3,8 @@
 Bot do Telegram + aplicação web para a família registrar receitas, despesas e compras
 parceladas, acompanhar o orçamento do mês e consultar compromissos futuros.
 
-> **Estado:** Etapas 2 (fundação) e 3 (bot) implementadas; web em desenvolvimento —
-> veja `PROGRESSO.md`. Este README será completado nas próximas etapas.
+> **Estado:** Etapas 2 (fundação), 3 (bot) e 4 (web) implementadas; operação e
+> integrações (Etapa 5) em andamento — veja `PROGRESSO.md`.
 
 ## Pré-requisitos
 
@@ -91,6 +91,29 @@ confirmação** por botão antes de registrar. Campos ausentes ou ambíguos ("de
 de cem") viram pergunta — nada é inventado. O modelo é baixado na primeira transcrição
 (`STT_MODELO_WHISPER`, padrão `small`, ~1–2 GB de RAM).
 
+## Aplicação web
+
+```bash
+uv run uvicorn financas.web.app:criar_app --factory --reload   # http://127.0.0.1:8000
+```
+
+Entre com o login criado por `financas criar-admin`. Telas:
+
+- **Dashboard:** receitas, despesas à vista, parcelas do mês, saldo, orçamento diário,
+  compras no crédito do mês (informativo), comparação com o mês anterior, evolução e
+  saldo acumulado do ano, distribuição por categoria/descrição e compromissos futuros.
+  Filtros por mês e membro. Os números vêm das mesmas funções usadas pelo bot.
+- **Lançamentos:** busca e filtros (tipo, membro, categoria, período, valor; situação
+  para admin), criação, detalhe com parcelas vigentes e revisões substituídas, edição
+  (com controle de concorrência), cancelamento com motivo, restauração (admin) e
+  histórico de auditoria (admin).
+- **Membros** e **Categorias:** somente administradores.
+
+Segurança: sessões no banco (o cookie `HttpOnly`/`SameSite=Lax`, `Secure` em
+produção, guarda um token cujo hash fica no banco), CSRF por sessão em todo POST,
+templates com escape automático, CSP sem scripts inline, limite de 5 falhas por login
+e 20 por IP a cada 15 minutos. Permissões são verificadas nos serviços, não só na tela.
+
 ## Estrutura
 
 ```
@@ -101,7 +124,7 @@ src/financas/
 ├── interpretation/  # parser de texto, números falados, interpretador de voz
 ├── integrations/    # transcrição (faster-whisper, OpenAI) e LLM (interface)
 ├── bot/             # processador (independente do Telegram), handlers, formatação
-├── web/             # aplicação web (etapa 4)
+├── web/             # FastAPI: auth, rotas, templates Jinja2, static (CSS/JS)
 └── config.py · logging.py · clock.py · cli.py
 docs/                # regras de negócio e ADRs
 ```

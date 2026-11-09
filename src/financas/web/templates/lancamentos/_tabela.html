@@ -1,0 +1,28 @@
+<p class="sutil" aria-live="polite">{{ resultado.total }} lançamento(s)</p>
+{% if resultado.itens %}
+<div class="rolagem">
+<table class="tabela">
+  <thead><tr><th>Código</th><th>Data</th><th>Tipo</th><th>Descrição</th><th>Titular</th><th>Origem</th><th class="num">Valor</th></tr></thead>
+  <tbody>
+  {% for item in resultado.itens %}{% set l = item.lancamento %}
+    <tr class="{% if l.status == 'CANCELADO' %}linha-cancelada{% endif %}">
+      <td><a href="/lancamentos/{{ l.id }}">#{{ l.id }}</a></td>
+      <td>{{ l.data_operacao | data }}</td>
+      <td><span class="etiqueta {{ l.tipo|lower }}">{{ l.tipo | tipo }}</span>{% if l.status == 'CANCELADO' %} <span class="etiqueta cancelado">Cancelado</span>{% endif %}</td>
+      <td>{{ l.descricao }}{% if l.qtd_parcelas %} <small class="sutil">em {{ l.qtd_parcelas }}x</small>{% endif %}{% if item.categoria %} <small class="etiqueta neutra">{{ item.categoria }}</small>{% endif %}</td>
+      <td>{{ item.titular }}</td>
+      <td><small>{{ l.origem | origem }}</small></td>
+      <td class="num">{{ l.valor_total | brl }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if resultado.paginas > 1 %}
+<nav class="paginacao" aria-label="Páginas">
+  {% if resultado.pagina > 1 %}<a href="/lancamentos?{{ consulta }}&pagina={{ resultado.pagina - 1 }}">‹ Anterior</a>{% endif %}
+  <span>Página {{ resultado.pagina }} de {{ resultado.paginas }}</span>
+  {% if resultado.pagina < resultado.paginas %}<a href="/lancamentos?{{ consulta }}&pagina={{ resultado.pagina + 1 }}">Próxima ›</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}<p class="vazio">Nenhum lançamento encontrado com esses filtros.</p>{% endif %}

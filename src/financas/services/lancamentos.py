@@ -10,8 +10,9 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 from sqlalchemy.orm.exc import StaleDataError
 
 from financas.clock import Clock
@@ -412,3 +413,88 @@ async def restaurar(
         depois=auditoria.foto_lancamento(lanc, parcelas or None),
     )
     return LancamentoComParcelas(lanc, parcelas)
+
+
+# ------------------------------------------------------------------ listagem (web)
+
+
+@dataclass(frozen=True, slots=True)
+class FiltroLancamentos:
+    membro_id: int | None = None
+    tipo: TipoLancamento | None = None
+    status: StatusLancamento | None = StatusLancamento.ATIVO  # None = todos (só admin)
+    texto: str | None = None
+    categoria_id: int | None = None
+    data_de: date | None = None
+    data_ate: date | None = None
+    valor_min: Decimal | None = None
+    valor_max: Decimal | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ItemListagem:
+    lancamento: Lancamento
+    titular: str
+    autor: str
+    categoria: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PaginaLancamentos:
+    itens: list[ItemListagem]
+    total: int
+    pagina: int
+    por_pagina: int
+
+    @property
+    def paginas(self) -> int:
+        return max(1, -(-self.total // self.por_pagina))
+
+
+async def listar(
+    s: AsyncSession,
+    ator: Membro,
+    filtro: FiltroLancamentos,
+    *,
+    pagina: int = 1,
+    por_pagina: int = 50,
+) -> PaginaLancamentos:
+    autorizacao.exigir_ativo(ator)
+    if not autorizacao.pode_ver_cancelados_e_auditoria(ator):
+        filtro = replace(filtro, status=StatusLancamento.ATIVO)
+    titular, autor = aliased(Membro), aliased(Membro)
+    condicoes = []
+    if filtro.status is not None:
+        condicoes.append(Lancamento.status == filtro.status.value)
+    if filtro.membro_id is not None:
+        condicoes.append(Lancamento.membro_id == filtro.membro_id)
+    if filtro.tipo is not None:
+        condicoes.append(Lancamento.tipo == filtro.tipo.value)
+    if filtro.categoria_id is not None:
+        condicoes.append(Lancamento.categoria_id == filtro.categoria_id)
+    if filtro.texto:
+        termo = normalizar(filtro.texto).replace("\\", "").replace("%", "").replace("_", "")
+        condicoes.append(Lancamento.descricao_normalizada.contains(termo))
+    if filtro.data_de is not None:
+        condicoes.append(Lancamento.data_operacao >= filtro.data_de)
+    if filtro.data_ate is not None:
+        condicoes.append(Lancamento.data_operacao <= filtro.data_ate)
+    if filtro.valor_min is not None:
+        condicoes.append(Lancamento.valor_total >= filtro.valor_min)
+    if filtro.valor_max is not None:
+        condicoes.append(Lancamento.valor_total <= filtro.valor_max)
+
+    total = int(await s.scalar(select(func.count()).select_from(Lancamento).where(*condicoes)) or 0)
+    pagina = max(1, pagina)
+    q = (
+        select(Lancamento, titular.nome, autor.nome, Categoria.nome)
+        .join(titular, titular.id == Lancamento.membro_id)
+        .join(autor, autor.id == Lancamento.criado_por)
+        .outerjoin(Categoria, Categoria.id == Lancamento.categoria_id)
+        .where(*condicoes)
+        .order_by(Lancamento.data_operacao.desc(), Lancamento.id.desc())
+        .limit(por_pagina)
+        .offset((pagina - 1) * por_pagina)
+    )
+    itens = [ItemListagem(lanc, t, a, cat) for lanc, t, a, cat in (await s.execute(q)).tuples()]
+    return PaginaLancamentos(itens, total, pagina, por_pagina)

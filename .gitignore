@@ -12,3 +12,7 @@ dist/
 backups/
 *.dump
 .tmp/
+
+# Documentos de trabalho locais (não versionados)
+spec.md
+PROGRESSO.md

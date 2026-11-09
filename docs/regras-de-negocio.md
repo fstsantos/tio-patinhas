@@ -1,6 +1,6 @@
 # Regras de negócio
 
-Documento vivo; complementa a especificação (`spec.md`). Implementação de referência
+Documento vivo; complementa a especificação original do projeto. Implementação de referência
 entre parênteses.
 
 ## Valores monetários (`domain/dinheiro.py`)

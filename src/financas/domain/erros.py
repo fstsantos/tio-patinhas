@@ -29,3 +29,19 @@ class DataInvalida(ErroDominio):
 
 class DescricaoInvalida(ErroDominio):
     """Descrição vazia ou longa demais."""
+
+
+class SemPermissao(ErroDominio):
+    """Ação não permitida pela matriz de permissões (spec 6.2)."""
+
+
+class NaoEncontrado(ErroDominio):
+    """Registro inexistente ou invisível para o ator."""
+
+
+class ConflitoConcorrencia(ErroDominio):
+    """O registro foi alterado por outra pessoa desde a leitura (controle otimista)."""
+
+
+class OperacaoInvalida(ErroDominio):
+    """Operação incompatível com o estado atual (ex.: cancelar o que já está cancelado)."""

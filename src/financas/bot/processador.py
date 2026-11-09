@@ -14,7 +14,9 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
+from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -23,7 +25,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from financas.bot import formatacao as fmt
 from financas.bot.paginacao import dividir
 from financas.clock import Clock
-from financas.db.models import Membro, Origem, StatusConfirmacao, TipoConfirmacao, TipoLancamento
+from financas.db.models import (
+    Lancamento,
+    Membro,
+    Origem,
+    StatusConfirmacao,
+    TipoConfirmacao,
+    TipoLancamento,
+)
 from financas.db.session import transacao
 from financas.domain.calendario import Mes
 from financas.domain.erros import ErroDominio, OperacaoInvalida
@@ -101,6 +110,39 @@ def _dados_lancamento(cmd: c.Lancamento) -> DadosLancamento:
     return DadosLancamento(tipo, cmd.valor, cmd.descricao, cmd.data)
 
 
+def _campos_comando(cmd: c.Comando) -> dict[str, Any]:
+    """Comando e seus argumentos, prontos para ``extra=`` de log."""
+    campos: dict[str, Any] = {"comando": type(cmd).__name__}
+    for f in fields(cmd):
+        valor = getattr(cmd, f.name)
+        if isinstance(valor, date):
+            valor = valor.isoformat()
+        elif isinstance(valor, Decimal) or (valor is not None and not isinstance(valor, int | str)):
+            valor = str(valor)
+        campos[f.name] = valor
+    return campos
+
+
+def _campos_lancamento(lanc: Lancamento) -> dict[str, Any]:
+    return {
+        "lancamento_id": lanc.id,
+        "tipo": lanc.tipo,
+        "valor": str(lanc.valor_total),
+        "parcelas": lanc.qtd_parcelas,
+        "descricao": lanc.descricao,
+        "data": lanc.data_operacao.isoformat(),
+    }
+
+
+def _contexto(msg: Mensagem, membro: Membro) -> dict[str, Any]:
+    """Quem enviou e onde (para log)."""
+    return {
+        "membro": membro.nome,
+        "membro_id": membro.id,
+        "chat": "privado" if msg.chat_privado else msg.chat_id,
+    }
+
+
 def _erro(e: ErroDominio) -> Resposta:
     texto = f"⚠️ {e.mensagem}"
     if e.sugestao:
@@ -159,8 +201,19 @@ class Processador:
         if isinstance(resultado, c.NaoReconhecido):
             return Resposta([fmt.SUGESTAO_AJUDA]) if msg.chat_privado else None
         if isinstance(resultado, c.ErroComando):
+            log.info(
+                "comando_invalido",
+                extra={
+                    "comando": resultado.comando,
+                    "erro": resultado.mensagem,
+                    **_contexto(msg, membro),
+                },
+            )
             return Resposta([fmt.erro_comando(resultado)])
-        log.info("comando", extra={"comando": type(resultado).__name__, "membro_id": membro.id})
+        log.info(
+            "comando",
+            extra={**_campos_comando(resultado), "origem": "texto", **_contexto(msg, membro)},
+        )
         return await self._executar(msg, membro, resultado, Origem.TELEGRAM_TEXTO)
 
     async def voz(self, msg: Mensagem, audio: bytes, formato: str = "ogg") -> Resposta | None:
@@ -172,6 +225,7 @@ class Processador:
         async with self.fabrica() as s:
             anterior = await idempotencia.buscar(s, msg.chat_id, msg.message_id)
         if anterior is not None:
+            log.info("mensagem_repetida", extra={"message_id": msg.message_id})
             return Resposta.de_json(anterior)
         if self.stt is None:
             return Resposta(
@@ -182,22 +236,28 @@ class Processador:
                 self.stt.transcrever(audio, formato), timeout=self.timeout_stt
             )
         except (TimeoutError, ErroTranscricao) as e:
-            log.warning("transcricao_falhou", extra={"erro": type(e).__name__})
+            log.warning(
+                "transcricao_falhou",
+                extra={"erro": type(e).__name__, "detalhe": str(e), **_contexto(msg, membro)},
+            )
             return Resposta(["Não consegui transcrever o áudio. Tente de novo ou envie por texto."])
 
         interp = await interpretar_voz(
             transcricao, self.clock.hoje(), llm=self.llm, timeout_llm=self.timeout_llm
         )
         ouvi = f"🎙️ Ouvi: “{transcricao.strip()}”"
+        cmd = interp.comando
         log.info(
             "voz_interpretada",
             extra={
-                "membro_id": membro.id,
+                "transcricao": transcricao.strip(),
+                **(_campos_comando(cmd) if cmd is not None else {"comando": None}),
                 "via_llm": interp.via_llm,
-                "reconhecido": interp.comando is not None,
+                "pergunta": interp.pergunta if cmd is None else None,
+                "origem": "voz",
+                **_contexto(msg, membro),
             },
         )
-        cmd = interp.comando
         if cmd is None:
             pergunta = interp.pergunta or "Não entendi."
             return await self._idempotente(
@@ -220,12 +280,15 @@ class Processador:
         if membro is None:
             return RespostaBotao("Você não está autorizado.", alerta=True)
         confirmar = escolha == "s"
+        ctx_botao = {"membro": membro.nome, "membro_id": membro.id, "confirmacao_id": str(conf_id)}
         async with transacao(self.fabrica) as s:
             ator = await s.get(Membro, membro.id)
             assert ator is not None
             r = await confirmacoes.resolver(
                 s, self.clock, conf_id, membro_id=ator.id, chat_id=chat_id, confirmar=confirmar
             )
+            if r.desfecho is not Desfecho.OK:
+                log.info("botao_ignorado", extra={"desfecho": r.desfecho.name, **ctx_botao})
             match r.desfecho:
                 case Desfecho.OUTRO_MEMBRO:
                     return RespostaBotao(
@@ -240,6 +303,10 @@ class Processador:
             conf = r.confirmacao
             assert conf is not None
             if not confirmar:
+                log.info(
+                    "confirmacao_recusada",
+                    extra={"tipo_confirmacao": conf.tipo, **ctx_botao},
+                )
                 texto = (
                     "Cancelamento descartado; o lançamento foi mantido."
                     if conf.tipo == TipoConfirmacao.CANCELAMENTO.value
@@ -253,6 +320,10 @@ class Processador:
                     )
                     conf.lancamento_id = lancamento_id
             except ErroDominio as e:
+                log.info(
+                    "confirmacao_falhou",
+                    extra={"tipo_confirmacao": conf.tipo, "erro": str(e), **ctx_botao},
+                )
                 conf.status = StatusConfirmacao.CANCELADA.value
                 return RespostaBotao(f"⚠️ Não foi possível concluir: {e}", editar_mensagem=True)
             return RespostaBotao(texto, editar_mensagem=True)
@@ -300,6 +371,7 @@ class Processador:
                 async with transacao(self.fabrica) as s:
                     anterior = await idempotencia.buscar(s, msg.chat_id, msg.message_id)
                     if anterior is not None:
+                        log.info("mensagem_repetida", extra={"message_id": msg.message_id})
                         return Resposta.de_json(anterior)
                     ator = await membros.ativo_por_telegram(s, msg.user_id)
                     if ator is None:
@@ -308,6 +380,14 @@ class Processador:
                         async with s.begin_nested():
                             resposta, lancamento_id = await acao(s, ator)
                     except ErroDominio as e:
+                        log.info(
+                            "comando_recusado",
+                            extra={
+                                "erro": e.mensagem,
+                                "erro_tipo": type(e).__name__,
+                                **_contexto(msg, ator),
+                            },
+                        )
                         resposta, lancamento_id = _erro(e), None
                     await idempotencia.registrar(
                         s,
@@ -328,6 +408,15 @@ class Processador:
     def _acao_lancar(self, cmd: c.Lancamento, origem: Origem) -> Acao:
         async def acao(s: AsyncSession, ator: Membro) -> tuple[Resposta, int | None]:
             r = await svc.criar(s, self.clock, ator, _dados_lancamento(cmd), origem=origem)
+            log.info(
+                "lancamento_registrado",
+                extra={
+                    **_campos_lancamento(r.lancamento),
+                    "origem": origem.value,
+                    "membro": ator.nome,
+                    "membro_id": ator.id,
+                },
+            )
             return Resposta([fmt.lancamento_registrado(r.lancamento, r.parcelas)]), r.lancamento.id
 
         return acao
@@ -345,6 +434,15 @@ class Processador:
                 payload=c.lancamento_para_json(cmd),
             )
             texto = f"{ouvi}\n\n{fmt.comando_de_voz(cmd)}"
+            log.info(
+                "confirmacao_solicitada",
+                extra={
+                    "tipo_confirmacao": conf.tipo,
+                    "confirmacao_id": str(conf.id),
+                    **_campos_comando(cmd),
+                    **_contexto(msg, ator),
+                },
+            )
             return Resposta(
                 [texto], _botoes_confirmacao(conf.id, "✅ Confirmar", "❌ Cancelar")
             ), None
@@ -368,6 +466,15 @@ class Processador:
             payload={"lancamento_id": lanc.id, "motivo": motivo},
             lancamento_id=lanc.id,
         )
+        log.info(
+            "cancelamento_solicitado",
+            extra={
+                **_campos_lancamento(lanc),
+                "motivo": motivo,
+                "confirmacao_id": str(conf.id),
+                **_contexto(msg, ator),
+            },
+        )
         return Resposta(
             [fmt.pedido_cancelamento(lanc, motivo)],
             _botoes_confirmacao(conf.id, "🗑️ Confirmar cancelamento", "Manter"),
@@ -383,6 +490,7 @@ class Processador:
         async def acao(s: AsyncSession, ator: Membro) -> tuple[Resposta, int | None]:
             lanc = await svc.ultimo_desfazivel(s, self.clock, ator)
             if lanc is None:
+                log.info("desfazer_sem_lancamento", extra=_contexto(msg, ator))
                 return Resposta(
                     [
                         "Nenhum lançamento seu dos últimos 10 minutos para desfazer."
@@ -401,6 +509,15 @@ class Processador:
             r = await svc.criar(
                 s, self.clock, ator, _dados_lancamento(cmd), origem=Origem.TELEGRAM_VOZ
             )
+            log.info(
+                "lancamento_registrado",
+                extra={
+                    **_campos_lancamento(r.lancamento),
+                    "origem": Origem.TELEGRAM_VOZ.value,
+                    "membro": ator.nome,
+                    "membro_id": ator.id,
+                },
+            )
             return fmt.lancamento_registrado(r.lancamento, r.parcelas), r.lancamento.id
         lanc = await svc.cancelar(
             s,
@@ -409,6 +526,15 @@ class Processador:
             int(payload["lancamento_id"]),
             origem=Origem.TELEGRAM_TEXTO,
             motivo=payload.get("motivo"),
+        )
+        log.info(
+            "lancamento_cancelado",
+            extra={
+                **_campos_lancamento(lanc),
+                "motivo": payload.get("motivo"),
+                "membro": ator.nome,
+                "membro_id": ator.id,
+            },
         )
         return fmt.lancamento_cancelado(lanc), lanc.id
 

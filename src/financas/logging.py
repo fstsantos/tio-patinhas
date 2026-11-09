@@ -38,6 +38,24 @@ def _mascarar_valor(chave: str, valor: Any) -> Any:
     return valor
 
 
+def _extras(record: logging.LogRecord) -> dict[str, Any]:
+    """Campos passados em ``extra=`` (já mascarados)."""
+    return {
+        chave: _mascarar_valor(chave, valor)
+        for chave, valor in vars(record).items()
+        if chave not in _ATRIBUTOS_PADRAO and not chave.startswith("_")
+    }
+
+
+def _valor_texto(valor: Any) -> str:
+    if valor is None:
+        return "-"
+    texto = str(valor)
+    if isinstance(valor, str) and (not texto or any(ch.isspace() or ch in '"=' for ch in texto)):
+        return json.dumps(texto, ensure_ascii=False)
+    return texto
+
+
 class FormatadorJSON(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         dados: dict[str, Any] = {
@@ -46,17 +64,22 @@ class FormatadorJSON(logging.Formatter):
             "logger": record.name,
             "msg": mascarar(record.getMessage()),
         }
-        for chave, valor in vars(record).items():
-            if chave not in _ATRIBUTOS_PADRAO and not chave.startswith("_"):
-                dados[chave] = _mascarar_valor(chave, valor)
+        dados.update(_extras(record))
         if record.exc_info:
             dados["exc"] = mascarar(self.formatException(record.exc_info))
         return json.dumps(dados, ensure_ascii=False, default=str)
 
 
 class FormatadorTexto(logging.Formatter):
+    """Linha legível; os campos de ``extra=`` vão ao final como ``chave=valor``."""
+
     def format(self, record: logging.LogRecord) -> str:
-        return mascarar(super().format(record))
+        texto = super().format(record)
+        campos = " ".join(f"{k}={_valor_texto(v)}" for k, v in _extras(record).items())
+        if campos:
+            primeira, sep, resto = texto.partition("\n")
+            texto = f"{primeira} {campos}{sep}{resto}"
+        return mascarar(texto)
 
 
 def configurar_logs(nivel: str = "INFO", *, json_: bool = True) -> None:

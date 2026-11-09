@@ -6,7 +6,7 @@ import pytest
 
 from financas.clock import RelogioFixo
 from financas.config import Settings
-from financas.logging import FormatadorJSON, mascarar
+from financas.logging import FormatadorJSON, FormatadorTexto, mascarar
 
 
 def test_relogio_fixo_usa_fuso_de_sao_paulo() -> None:
@@ -50,6 +50,30 @@ def test_formatador_json_mascara_campos_extras() -> None:
     assert dados["msg"] == "login ok"
     assert dados["senha"] == "***"
     assert dados["membro_id"] == 7
+
+
+def test_formatador_texto_inclui_campos_extras() -> None:
+    reg = logging.makeLogRecord(
+        {
+            "msg": "lancamento_registrado",
+            "levelname": "INFO",
+            "name": "bot",
+            "lancamento_id": 7,
+            "descricao": "café da manhã",
+            "parcelas": None,
+            "senha": "abc",
+        }
+    )
+    linha = FormatadorTexto("%(levelname)s %(name)s %(message)s").format(reg)
+    assert linha == (
+        'INFO bot lancamento_registrado lancamento_id=7 descricao="café da manhã" '
+        "parcelas=- senha=***"
+    )
+
+
+def test_formatador_texto_sem_extras_nao_muda() -> None:
+    reg = logging.makeLogRecord({"msg": "bot_iniciado", "levelname": "INFO", "name": "bot"})
+    assert FormatadorTexto("%(levelname)s %(message)s").format(reg) == "INFO bot_iniciado"
 
 
 def test_variaveis_vazias_sao_ausentes(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -83,6 +83,12 @@ async def csrf_de(c: httpx.AsyncClient, url: str = "/lancamentos/novo") -> str:
 # ------------------------------------------------------------------ autenticação
 
 
+async def test_health_sem_login(cliente: httpx.AsyncClient) -> None:
+    r = await cliente.get("/health")
+    assert r.status_code == 200 and r.json() == {"status": "ok"}
+    assert (await cliente.get("/saude")).status_code == 404
+
+
 async def test_login_e_sessao(cliente: httpx.AsyncClient, pessoas: dict[str, int]) -> None:
     r = await cliente.get("/")
     assert r.status_code == 303 and r.headers["location"] == "/login"

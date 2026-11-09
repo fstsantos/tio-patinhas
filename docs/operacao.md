@@ -36,7 +36,7 @@ Sem Docker: `uv sync --extra voz`, `uv run alembic upgrade head`,
 - Mensagens de pessoas/chats não autorizados **não** são registradas.
 - Eventos úteis: `comando` (tipo e `membro_id`, sem o texto), `voz_interpretada`,
   `transcricao_falhou`, `llm_indisponivel`, `erro_no_handler` (com `update_id`).
-- Saúde da web: `GET /saude`.
+- Saúde da web: `GET /health`.
 - Integridade: `uv run financas verificar-integridade` (código de saída 1 se houver problemas).
 
 ## Backup e restauração

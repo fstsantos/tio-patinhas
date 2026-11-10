@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -12,9 +13,12 @@ from financas.clock import RelogioSistema
 from financas.config import get_settings
 from financas.db.models import Papel
 from financas.db.session import criar_engine, criar_fabrica, transacao
+from financas.domain.dinheiro import formatar_brl
 from financas.domain.erros import ErroDominio
+from financas.integrations.fatura.itau import ErroFatura, Fatura, ler_fatura
 from financas.logging import configurar_logs
-from financas.services import membros
+from financas.services import importacao, membros
+from financas.services.importacao import Plano, Regras, Situacao
 from financas.services.integridade import Problema, verificar_integridade
 from financas.services.membros import DadosMembro
 
@@ -78,6 +82,80 @@ async def _verificar() -> list[Problema]:
             return await verificar_integridade(s)
     finally:
         await engine.dispose()
+
+
+@app.command("importar-fatura")
+def importar_fatura(
+    arquivo: Annotated[Path, typer.Argument(help="Fatura fechada do Itaú (.xlsx)")],
+    membro: Annotated[str, typer.Option(help="Nome do membro titular das compras")],
+    regras: Annotated[
+        Path | None, typer.Option(help="TOML com trechos a ignorar e categorias")
+    ] = None,
+    confirmar: Annotated[
+        bool, typer.Option("--confirmar", help="Grava; sem isso, só mostra a prévia")
+    ] = False,
+) -> None:
+    """Importa uma fatura de cartão como compras no crédito. Prévia por padrão."""
+    try:
+        fatura = ler_fatura(arquivo)
+        regras_ = importacao.carregar_regras(regras) if regras else Regras()
+        plano, criados = asyncio.run(_importar(fatura, membro, regras_, confirmar))
+    except (ErroFatura, ErroDominio) as e:
+        typer.secho(str(e), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from e
+    _mostrar_plano(plano)
+    if plano.com(Situacao.ERRO):
+        typer.secho("Há linhas com erro; nada foi importado.", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
+    if confirmar:
+        typer.secho(f"{criados} compra(s) importada(s).", fg=typer.colors.GREEN)
+    else:
+        typer.echo("Prévia: nada foi gravado. Repita com --confirmar para importar.")
+
+
+async def _importar(
+    fatura: Fatura, membro: str, regras: Regras, confirmar: bool
+) -> tuple[Plano, int]:
+    engine = criar_engine(get_settings().database_url)
+    clock = RelogioSistema()
+    try:
+        async with transacao(criar_fabrica(engine)) as s:
+            titular = await importacao.membro_por_nome(s, membro)
+            plano = await importacao.planejar(s, clock, titular, fatura, regras)
+            if not confirmar or plano.com(Situacao.ERRO):
+                return plano, 0
+            return plano, len(await importacao.executar(s, clock, plano))
+    finally:
+        await engine.dispose()
+
+
+def _mostrar_plano(plano: Plano) -> None:
+    fatura = plano.fatura
+    typer.echo(
+        f"Fatura {fatura.mes.abreviado} — total {formatar_brl(fatura.total)} — "
+        f"titular {plano.titular.nome}"
+    )
+    for item in plano.itens:
+        linha = item.linha
+        parcelas = f"{linha.parcela}/{linha.qtd_parcelas}" if linha.qtd_parcelas > 1 else "à vista"
+        complemento = item.detalhe or item.categoria or "sem categoria"
+        if item.situacao is Situacao.EXISTENTE:
+            complemento = f"compra {item.detalhe}"
+        typer.echo(
+            f"{linha.linha:>4}  {linha.data:%d/%m/%Y}  {linha.descricao[:40]:<40}  "
+            f"{parcelas:>7}  {formatar_brl(linha.valor):>14}  "
+            f"{item.situacao.value:<9}  {complemento}"
+        )
+    typer.echo(
+        f"Novas: {len(plano.com(Situacao.NOVA))} ({formatar_brl(plano.total(Situacao.NOVA))}) · "
+        f"já existentes: {len(plano.com(Situacao.EXISTENTE))} "
+        f"({formatar_brl(plano.total(Situacao.EXISTENTE))}) · "
+        f"ignoradas: {len(plano.com(Situacao.IGNORADA))} "
+        f"({formatar_brl(plano.total(Situacao.IGNORADA))}) · "
+        f"erros: {len(plano.com(Situacao.ERRO))}"
+    )
+    no_mes = plano.total(Situacao.NOVA, Situacao.EXISTENTE)
+    typer.echo(f"Parcelas desta fatura em {fatura.mes.abreviado}: {formatar_brl(no_mes)}")
 
 
 if __name__ == "__main__":  # pragma: no cover

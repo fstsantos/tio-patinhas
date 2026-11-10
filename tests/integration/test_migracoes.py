@@ -210,3 +210,55 @@ async def test_parcela_sem_lancamento_rejeitada(
     with pytest.raises(IntegrityError):
         async with fabrica() as s, s.begin():
             await _parcela(s, 999_999, 1, "10.00", date(2026, 4, 1))
+
+
+@pytest.mark.parametrize(
+    ("tipo", "qtd", "data_op", "primeira"),
+    [
+        ("CREDITO", 1, date(2026, 3, 20), date(2026, 2, 1)),  # antes do mês da compra
+        ("CREDITO", 1, date(2026, 3, 20), date(2026, 6, 1)),  # depois de M + 2
+        ("CREDITO", 1, date(2026, 3, 20), date(2026, 4, 2)),  # não é dia 1
+        ("DEBITO", None, date(2026, 3, 20), date(2026, 4, 1)),  # só crédito
+    ],
+)
+async def test_check_primeira_competencia(
+    fabrica: async_sessionmaker[AsyncSession],
+    tipo: str,
+    qtd: int | None,
+    data_op: date,
+    primeira: date,
+) -> None:
+    async with fabrica() as s, s.begin():
+        m = await _membro(s)
+    with pytest.raises(IntegrityError, match="primeira_competencia"):
+        async with fabrica() as s, s.begin():
+            await s.execute(
+                text(
+                    "INSERT INTO lancamentos (tipo, valor_total, descricao, descricao_normalizada,"
+                    " membro_id, criado_por, data_operacao, qtd_parcelas, primeira_competencia,"
+                    " status, origem)"
+                    " VALUES (:t, 10, 'x', 'x', :m, :m, :d, :q, :p, 'ATIVO', 'WEB')"
+                ),
+                {"t": tipo, "m": m, "d": data_op, "q": qtd, "p": primeira},
+            )
+
+
+async def test_check_primeira_competencia_aceita_m0_e_m2(
+    fabrica: async_sessionmaker[AsyncSession],
+) -> None:
+    async with fabrica() as s, s.begin():
+        m = await _membro(s)
+        for primeira, comp in [
+            (date(2026, 3, 1), date(2026, 3, 1)),
+            (date(2026, 5, 1), date(2026, 5, 1)),
+        ]:
+            r = await s.execute(
+                text(
+                    "INSERT INTO lancamentos (tipo, valor_total, descricao, descricao_normalizada,"
+                    " membro_id, criado_por, data_operacao, qtd_parcelas, primeira_competencia,"
+                    " status, origem) VALUES ('CREDITO', 10, 'x', 'x', :m, :m, :d, 1, :p,"
+                    " 'ATIVO', 'WEB') RETURNING id"
+                ),
+                {"m": m, "d": date(2026, 3, 31), "p": primeira},
+            )
+            await _parcela(s, int(r.scalar_one()), 1, "10.00", comp)

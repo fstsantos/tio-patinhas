@@ -27,8 +27,8 @@ def foto_lancamento(lanc: Lancamento, parcelas: list[Parcela] | None = None) -> 
     """Estado serializável de um lançamento e, opcionalmente, de suas parcelas vigentes."""
     campos = (
         "id", "tipo", "valor_total", "descricao", "categoria_id", "membro_id", "criado_por",
-        "data_operacao", "qtd_parcelas", "status", "cancelado_em", "cancelado_por",
-        "motivo_cancelamento", "origem", "revisao",
+        "data_operacao", "qtd_parcelas", "primeira_competencia", "status", "cancelado_em",
+        "cancelado_por", "motivo_cancelamento", "origem", "revisao",
     )  # fmt: skip
     dados = {c: _json(getattr(lanc, c)) for c in campos}
     if parcelas is not None:

@@ -49,7 +49,7 @@
   </section>
   <section class="cartao informativo">
     <h2>Compras no crédito feitas neste mês</h2>
-    <p class="sutil">Informativo: não entram no saldo; a 1ª parcela é do mês seguinte.</p>
+    <p class="sutil">Informativo: o valor total não entra no saldo, só as parcelas de cada mês (a 1ª costuma ser do mês seguinte).</p>
     {% if resumo.compras_credito %}
       <p class="destaque">{{ resumo.total_credito_contratado | brl }} <small>em {{ resumo.compras_credito | length }} compra(s)</small></p>
       <ul class="lista-simples">{% for m, v in resumo.impacto_futuro[:6] %}<li>{{ m.abreviado }} <span>{{ v | brl }}</span></li>{% endfor %}</ul>

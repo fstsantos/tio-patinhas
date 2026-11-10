@@ -4,7 +4,8 @@
     Orçamento diário = Saldo ÷ dias  (se Saldo > 0 e mês não encerrado), senão 0
 
 R = receitas do mês, D = débitos do mês, P = parcelas com mês de referência no mês.
-Compras no crédito feitas no mês não entram (a primeira parcela é de M + 1).
+O valor total das compras no crédito não entra; só as parcelas do mês (a 1ª
+parcela é de M + 1, salvo quando a compra informa outro mês).
 Esta é a única função de cálculo usada pelo bot, pela web e pelo resumo anual.
 """
 

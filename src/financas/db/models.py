@@ -158,6 +158,16 @@ class Categoria(TimestampsMixin, Base):
     ativa: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
 
 
+# Mês da 1ª parcela (opcional, só crédito): dia 1, do mês da compra até dois meses depois.
+PRIMEIRA_COMPETENCIA_CHECK = (
+    "primeira_competencia IS NULL OR ("
+    "tipo = 'CREDITO' AND EXTRACT(DAY FROM primeira_competencia) = 1"
+    " AND primeira_competencia >= date_trunc('month', data_operacao)::date"
+    " AND primeira_competencia <= (date_trunc('month', data_operacao)"
+    " + interval '2 months')::date)"
+)
+
+
 class Lancamento(TimestampsMixin, Base):
     __tablename__ = "lancamentos"
     __table_args__ = (
@@ -176,6 +186,7 @@ class Lancamento(TimestampsMixin, Base):
             "data_operacao <= (updated_at AT TIME ZONE 'America/Sao_Paulo')::date",
             name="data_nao_futura",
         ),
+        CheckConstraint(PRIMEIRA_COMPETENCIA_CHECK, name="primeira_competencia"),
         CheckConstraint("length(descricao) BETWEEN 1 AND 120", name="descricao_tamanho"),
         CheckConstraint(
             "(status = 'CANCELADO') = (cancelado_em IS NOT NULL)", name="dados_cancelamento"
@@ -197,6 +208,8 @@ class Lancamento(TimestampsMixin, Base):
     criado_por: Mapped[int] = mapped_column(ForeignKey("membros.id", ondelete="RESTRICT"))
     data_operacao: Mapped[date] = mapped_column(Date)
     qtd_parcelas: Mapped[int | None] = mapped_column(SmallInteger)
+    # Mês da 1ª parcela; NULL = regra padrão (mês seguinte ao da compra).
+    primeira_competencia: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(10), default=StatusLancamento.ATIVO.value)
     cancelado_em: Mapped[datetime | None]
     cancelado_por: Mapped[int | None] = mapped_column(ForeignKey("membros.id", ondelete="RESTRICT"))

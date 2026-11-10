@@ -19,6 +19,7 @@
     <dt>Descrição</dt><dd>{{ lanc.descricao }}</dd>
     <dt>Data</dt><dd>{{ lanc.data_operacao | data }}</dd>
     {% if lanc.qtd_parcelas %}<dt>Parcelas</dt><dd>{{ lanc.qtd_parcelas }}x</dd>{% endif %}
+    {% if lanc.primeira_competencia %}<dt>1ª parcela</dt><dd>{{ lanc.primeira_competencia | mes }} <small class="sutil">(informada)</small></dd>{% endif %}
     <dt>Categoria</dt><dd>{{ categoria or '—' }}</dd>
     <dt>Titular</dt><dd>{{ titular.nome }}</dd>
     <dt>Registrado por</dt><dd>{{ autor.nome }}</dd>

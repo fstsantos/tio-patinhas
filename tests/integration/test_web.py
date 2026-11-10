@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from financas.bot.processador import Mensagem, Processador
 from financas.config import Settings
 from financas.db.models import Lancamento, Membro, Papel
+from financas.services import lancamentos as svc_lanc
 from financas.services import senhas
 from financas.web.app import criar_app
 from tests import factories as f
@@ -459,3 +460,65 @@ async def test_numeros_identicos_bot_e_web(
     texto_bot = await enviar("resumo mês")
     html = (await cliente.get("/")).text
     assert "R$ 3.350,00" in texto_bot and "R$ 3.350,00" in html
+
+
+async def test_credito_com_mes_da_primeira_parcela(
+    cliente: httpx.AsyncClient, pessoas: dict[str, int], fabrica: async_sessionmaker[AsyncSession]
+) -> None:
+    await entrar(cliente, "ana")
+    lid = await _criar(
+        cliente,
+        tipo="CREDITO",
+        valor="300,00",
+        parcelas="3",
+        primeira_competencia="2026-03",
+        data="2026-03-02",
+    )
+    r = await cliente.get(f"/lancamentos/{lid}")
+    assert "1ª parcela" in r.text and "(informada)" in r.text
+    async with fabrica() as s:
+        parcelas = await svc_lanc.parcelas_vigentes(s, lid)
+        assert [p.competencia for p in parcelas] == [
+            date(2026, 3, 1),
+            date(2026, 4, 1),
+            date(2026, 5, 1),
+        ]
+    # edição exibe o mês e, sem mexer nele, não reparcela
+    r = await cliente.get(f"/lancamentos/{lid}/editar")
+    assert 'value="2026-03"' in r.text
+    token = _csrf(r.text)
+    r = await cliente.post(
+        f"/lancamentos/{lid}/editar",
+        data={
+            "csrf_token": token,
+            "valor": "300,00",
+            "parcelas": "3",
+            "primeira_competencia": "2026-03",
+            "descricao": "loja",
+            "data": "2026-03-02",
+            "revisao": "1",
+        },
+    )
+    assert r.status_code == 303
+    async with fabrica() as s:
+        assert {p.revisao_lancamento for p in await svc_lanc.parcelas_vigentes(s, lid)} == {1}
+
+
+@pytest.mark.parametrize(
+    ("mes", "mensagem"), [("2026-07", "1ª parcela inválido"), ("março", "aaaa-mm")]
+)
+async def test_mes_da_primeira_parcela_invalido(
+    cliente: httpx.AsyncClient, pessoas: dict[str, int], mes: str, mensagem: str
+) -> None:
+    await entrar(cliente, "ana")
+    dados = {
+        "tipo": "CREDITO",
+        "valor": "300,00",
+        "parcelas": "3",
+        "primeira_competencia": mes,
+        "descricao": "loja",
+        "data": "2026-03-02",
+        "csrf_token": await csrf_de(cliente),
+    }
+    r = await cliente.post("/lancamentos", data=dados)
+    assert r.status_code == 422 and mensagem in r.text

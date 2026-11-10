@@ -110,11 +110,17 @@ class Mes:
         return f"{self.mes:02d}/{self.ano}"
 
 
-def competencia_parcela(data_compra: date, numero: int) -> date:
-    """Mês de referência da parcela ``numero`` (1..n): mês da compra + numero.
+def competencia_parcela(
+    data_compra: date, numero: int, primeira_competencia: date | None = None
+) -> date:
+    """Mês de referência da parcela ``numero`` (1..n).
 
+    Sem ``primeira_competencia``, a parcela 1 é do mês seguinte ao da compra (regra
+    padrão). Com ela, a parcela 1 é desse mês e as demais seguem mês a mês.
     Retorna o primeiro dia do mês (formato armazenado em ``parcelas.competencia``).
     """
     if numero < 1:
         raise ValueError("número da parcela começa em 1")
-    return Mes.de_data(data_compra).somar(numero).primeiro_dia
+    if primeira_competencia is None:
+        return Mes.de_data(data_compra).somar(numero).primeiro_dia
+    return Mes.de_data(primeira_competencia).somar(numero - 1).primeiro_dia

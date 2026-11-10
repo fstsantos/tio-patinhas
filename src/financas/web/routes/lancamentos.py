@@ -42,6 +42,14 @@ def _data(valor: str | None) -> date | None:
         return None
 
 
+def _mes(valor: str) -> date | None:
+    """``aaaa-mm`` (campo ``type=month``) → primeiro dia do mês; inválido → None."""
+    try:
+        return date.fromisoformat(f"{valor}-01")
+    except ValueError:
+        return None
+
+
 def _valor_opcional(valor: str | None) -> Decimal | None:
     try:
         return parse_valor(valor) if valor else None
@@ -116,6 +124,7 @@ def _ler_formulario(
         "tipo",
         "valor",
         "parcelas",
+        "primeira_competencia",
         "descricao",
         "data",
         "categoria",
@@ -136,10 +145,15 @@ def _ler_formulario(
     except ErroDominio as e:
         f.erros["valor"] = str(e)
     parcelas = None
+    primeira_competencia = None
     if tipo is TipoLancamento.CREDITO:
         parcelas = inteiro_ou_none(v["parcelas"])
         if parcelas is None:
             f.erros["parcelas"] = "Informe de 1 a 48 parcelas."
+        if v["primeira_competencia"]:
+            primeira_competencia = _mes(v["primeira_competencia"])
+            if primeira_competencia is None:
+                f.erros["primeira_competencia"] = "Informe o mês no formato aaaa-mm."
     data_op = _data(v["data"])
     if data_op is None:
         f.erros["data"] = "Informe a data."
@@ -148,7 +162,13 @@ def _ler_formulario(
     if f.erros or tipo is None or valor is None or data_op is None:
         return f, None, None
     dados = svc.DadosLancamento(
-        tipo, valor, v["descricao"], data_op, parcelas, inteiro_ou_none(v["categoria"])
+        tipo,
+        valor,
+        v["descricao"],
+        data_op,
+        parcelas,
+        inteiro_ou_none(v["categoria"]),
+        primeira_competencia,
     )
     return f, dados, inteiro_ou_none(v["titular"])
 
@@ -262,6 +282,9 @@ async def editar_form(
     f = Formulario(valores={
         "tipo": lanc.tipo, "valor": formatar_brl(lanc.valor_total).removeprefix("R$ "),
         "parcelas": str(lanc.qtd_parcelas or ""), "descricao": lanc.descricao,
+        "primeira_competencia": (
+            lanc.primeira_competencia.strftime("%Y-%m") if lanc.primeira_competencia else ""
+        ),
         "data": lanc.data_operacao.isoformat(), "categoria": str(lanc.categoria_id or ""),
         "titular": str(lanc.membro_id), "revisao": str(lanc.revisao),
     })  # fmt: skip

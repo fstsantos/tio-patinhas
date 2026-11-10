@@ -179,8 +179,9 @@ gerenciado e segredos no gerenciador da plataforma.
 
 ## Limitações conhecidas
 
-- O mês de referência das parcelas é sempre o mês seguinte ao da compra; compras após o
-  fechamento real do cartão podem, na fatura, cair em M + 2.
+- Por padrão, a 1ª parcela é do mês seguinte ao da compra. Quando a fatura real diz outro
+  mês (compra antes ou depois do fechamento do cartão), a web permite informar o mês da
+  1ª parcela (do mês da compra até M + 2); o bot sempre usa a regra padrão.
 - Não há controle de pagamentos (parcela "paga"), saldo bancário nem transporte de
   saldo entre meses.
 - Parcelas individuais não são editáveis nem canceláveis.

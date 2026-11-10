@@ -75,3 +75,18 @@ def test_parse_e_formatos() -> None:
 )
 def test_competencia_parcela(compra: date, numero: int, competencia: date) -> None:
     assert competencia_parcela(compra, numero) == competencia
+
+
+@pytest.mark.parametrize(
+    ("compra", "primeira", "numero", "competencia"),
+    [
+        (date(2026, 11, 5), date(2026, 11, 1), 1, date(2026, 11, 1)),  # mesmo mês (M + 0)
+        (date(2026, 11, 5), date(2026, 11, 1), 3, date(2027, 1, 1)),  # virada de ano
+        (date(2026, 3, 30), date(2026, 5, 1), 1, date(2026, 5, 1)),  # M + 2
+        (date(2026, 3, 30), date(2026, 5, 1), 2, date(2026, 6, 1)),
+    ],
+)
+def test_competencia_parcela_com_primeira_informada(
+    compra: date, primeira: date, numero: int, competencia: date
+) -> None:
+    assert competencia_parcela(compra, numero, primeira) == competencia

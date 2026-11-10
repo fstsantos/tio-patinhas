@@ -16,6 +16,8 @@ from financas.db.session import criar_engine, criar_fabrica, transacao
 from financas.domain.dinheiro import formatar_brl
 from financas.domain.erros import ErroDominio
 from financas.integrations.fatura.itau import ErroFatura, Fatura, ler_fatura
+from financas.integrations.llm import ErroLLM, criar_llm
+from financas.interpretation.interpretador import interpretar_com_llm
 from financas.logging import configurar_logs
 from financas.services import importacao, membros
 from financas.services.importacao import Plano, Regras, Situacao
@@ -156,6 +158,37 @@ def _mostrar_plano(plano: Plano) -> None:
     )
     no_mes = plano.total(Situacao.NOVA, Situacao.EXISTENTE)
     typer.echo(f"Parcelas desta fatura em {fatura.mes.abreviado}: {formatar_brl(no_mes)}")
+
+
+@app.command("testar-llm")
+def testar_llm(
+    frase: Annotated[str, typer.Argument(help="Texto como se fosse a transcrição de um áudio")],
+) -> None:
+    """Envia uma frase direto à LLM configurada e mostra o que ela entendeu.
+
+    Serve para validar provedor, chave e modelo. Não grava nada. Aqui a LLM é sempre
+    chamada; no bot ela só entra quando a interpretação local falha.
+    """
+    cfg = get_settings()
+    llm = criar_llm(cfg)
+    if llm is None:
+        typer.secho("Nenhuma LLM configurada (LLM_PROVEDOR=nenhum).", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
+    hoje = RelogioSistema().hoje()
+    try:
+        comandos, duvida = asyncio.run(
+            interpretar_com_llm(frase, hoje, llm, cfg.llm_timeout_segundos)
+        )
+    except ErroLLM as e:
+        typer.secho(f"Falha: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from e
+    typer.echo(f"Provedor: {cfg.llm_provedor.value} · modelo: {getattr(llm, 'modelo', '-')}")
+    for n, cmd in enumerate(comandos, start=1):
+        typer.echo(f"{n}. {cmd}")
+    if duvida:
+        typer.echo(f"Dúvida: {duvida}")
+    if not comandos and not duvida:
+        typer.echo("A LLM não propôs nenhum lançamento válido.")
 
 
 if __name__ == "__main__":  # pragma: no cover

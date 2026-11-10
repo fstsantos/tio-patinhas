@@ -20,7 +20,7 @@ Voz: integrations/stt ─► interpretation/* ─► (integrations/llm opcional)
 | Serviços | `services/` | lançamentos, relatórios, autorização, auditoria, idempotência, confirmações, membros, categorias, integridade | únicos pontos de entrada das regras; recebem a sessão e o relógio |
 | Persistência | `db/` | modelos ORM, sessão | esquema só por migrações Alembic |
 | Interpretação | `interpretation/` | parser de texto, números falados, interpretador de voz | independente do Telegram |
-| Integrações | `integrations/` | STT (faster-whisper, OpenAI), LLM (Anthropic) | por interfaces (`SpeechToText`, `LLMProvider`) |
+| Integrações | `integrations/` | STT (faster-whisper, OpenAI), LLM (Anthropic, compatível com OpenAI), leitor de fatura | por interfaces (`SpeechToText`, `LLMProvider`) |
 | Apresentação | `bot/`, `web/` | adaptadores finos | não contêm regra de negócio |
 
 ## Decisões principais

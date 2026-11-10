@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 
@@ -74,16 +75,37 @@ def pedido_cancelamento(lanc: Lancamento, motivo: str | None) -> str:
     )
 
 
-def comando_de_voz(cmd: c.Lancamento) -> str:
+def _linha_comando(cmd: c.Lancamento) -> str:
     if isinstance(cmd, c.Credito):
-        corpo = (
+        return (
             f"Crédito {R(cmd.valor_total)} em {cmd.parcelas}x · {cmd.descricao} · "
             f"compra em {_data(cmd.data)}"
         )
-    else:
-        nome = "Débito" if isinstance(cmd, c.Debito) else "Ganho"
-        corpo = f"{nome} {R(cmd.valor)} · {cmd.descricao} · {_data(cmd.data)}"
-    return f"🎙️ Entendi:\n{corpo}\n\nConfirma o registro?"
+    nome = "Débito" if isinstance(cmd, c.Debito) else "Ganho"
+    return f"{nome} {R(cmd.valor)} · {cmd.descricao} · {_data(cmd.data)}"
+
+
+def comando_de_voz(cmd: c.Lancamento) -> str:
+    return f"🎙️ Entendi:\n{_linha_comando(cmd)}\n\nConfirma o registro?"
+
+
+def lote_de_voz(cmds: Sequence[c.Lancamento]) -> str:
+    linhas = [f"🎙️ Entendi {len(cmds)} lançamentos:"]
+    linhas += [f"{n}. {_linha_comando(cmd)}" for n, cmd in enumerate(cmds, start=1)]
+    linhas.append("\nConfirma o registro de todos?")
+    return "\n".join(linhas)
+
+
+def lote_registrado(lancs: Sequence[Lancamento]) -> str:
+    linhas = [f"✅ {len(lancs)} lançamentos registrados"]
+    for lanc in lancs:
+        parc = f" em {lanc.qtd_parcelas}x" if lanc.qtd_parcelas else ""
+        linhas.append(
+            f"• {lanc.id} · {_NOME_TIPO[lanc.tipo]} {R(lanc.valor_total)}{parc} · "
+            f"{lanc.descricao} · {_data(lanc.data_operacao)}"
+        )
+    linhas.append("\nPara cancelar um deles: cancelar <código> [motivo]")
+    return "\n".join(linhas)
 
 
 def ultimos(lancs: list[Lancamento]) -> str:
@@ -254,7 +276,8 @@ Dicas de valores:
 • dd/mm sem ano vale para o ano corrente; datas futuras são aceitas
 
 Voz: envie um áudio, ex.: "débito de dez reais e cinquenta no mercado".
-Todo comando de voz pede confirmação antes de registrar."""
+Todo comando de voz pede confirmação antes de registrar.
+Diga a data como "ontem" ou em números (15/11)."""
 
 NAO_AUTORIZADO = (
     "Olá! Este bot é de uso privado e você não está autorizado. "

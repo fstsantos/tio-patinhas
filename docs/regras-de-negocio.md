@@ -120,7 +120,14 @@ Reparcelar marca as vigentes como `SUBSTITUIDA` e gera novas com a nova revisão
 - Mensagens editadas não alteram lançamentos; o bot orienta a cancelar e registrar de
   novo (só responde se o texto editado for um comando).
 - Voz: transcrição → números falados → mesmo parser → extração determinística →
-  LLM opcional (só propõe; a proposta passa pelo mesmo parser) → confirmação. A
-  ambiguidade "valor da parcela × total" nunca é resolvida pela LLM: exige o usuário.
+  LLM opcional → confirmação. A LLM só é chamada quando as etapas locais falham, ou
+  quando elas entenderam um único lançamento mas a fala tem mais de um valor (pode
+  haver um segundo lançamento engolido na descrição). Ela só propõe: cada item passa
+  pelo mesmo parser; um item inválido descarta a proposta inteira. Se a LLM falhar ou
+  demorar, vale o resultado local. A ambiguidade "valor da parcela × total" nunca é
+  resolvida pela LLM: exige o usuário.
+- Vários lançamentos no mesmo áudio (só com LLM, até 10): uma única confirmação
+  ("Confirmar todos") e uma única transação — ou entram todos, ou nenhum. `desfazer`
+  continua valendo só para o último; os demais são cancelados pelo código.
 - Consultas por voz (ex.: "resumo crédito") são respondidas sem confirmação, pois não
   registram nada.

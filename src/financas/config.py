@@ -24,8 +24,8 @@ class ProvedorSTT(StrEnum):
 
 class ProvedorLLM(StrEnum):
     NENHUM = "nenhum"
-    OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    OPENAI = "openai"  # OpenAI ou qualquer serviço compatível (ver LLM_BASE_URL)
     FALSO = "falso"
 
 
@@ -61,12 +61,15 @@ class Settings(BaseSettings):
     # LLM (opcional)
     llm_provedor: ProvedorLLM = ProvedorLLM.NENHUM
     llm_timeout_segundos: float = 15.0
-    llm_modelo: str = "claude-opus-5-5"
+    llm_modelo: str | None = None  # vazio = padrão do provedor (obrigatório no openai)
+    llm_base_url: str | None = None  # só openai: endereço de um serviço compatível
+    llm_api_key: SecretStr | None = None  # vazio = ANTHROPIC_API_KEY / OPENAI_API_KEY
     anthropic_api_key: SecretStr | None = None
 
     @field_validator(
         "telegram_bot_token", "telegram_bot_username", "telegram_webhook_url",
-        "openai_api_key", "anthropic_api_key", mode="before",
+        "openai_api_key", "anthropic_api_key", "llm_api_key", "llm_modelo", "llm_base_url",
+        mode="before",
     )  # fmt: skip
     @classmethod
     def _vazio_e_ausente(cls, v: object) -> object:

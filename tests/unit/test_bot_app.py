@@ -32,4 +32,35 @@ def test_monta_aplicacao() -> None:
 def test_criar_llm() -> None:
     assert bot_app.criar_llm(_cfg()) is None
     assert bot_app.criar_llm(_cfg(llm_provedor=ProvedorLLM.FALSO)) is not None
-    assert bot_app.criar_llm(_cfg(llm_provedor=ProvedorLLM.OPENAI)) is None
+    with pytest.raises(SystemExit, match="LLM_API_KEY"):
+        bot_app.criar_llm(_cfg(llm_provedor=ProvedorLLM.ANTHROPIC))
+    antr = bot_app.criar_llm(
+        _cfg(llm_provedor=ProvedorLLM.ANTHROPIC, anthropic_api_key=SecretStr("a"))
+    )
+    assert antr is not None and antr.modelo == "claude-haiku-5-5"  # type: ignore[attr-defined]
+    antr = bot_app.criar_llm(
+        _cfg(llm_provedor=ProvedorLLM.ANTHROPIC, llm_api_key=SecretStr("a"), llm_modelo="m")
+    )
+    assert antr is not None and antr.modelo == "m"  # type: ignore[attr-defined]
+
+    aberta = _cfg(llm_provedor=ProvedorLLM.OPENAI)
+    with pytest.raises(SystemExit, match="LLM_MODELO"):
+        bot_app.criar_llm(aberta)
+    with pytest.raises(SystemExit, match="LLM_API_KEY"):
+        bot_app.criar_llm(aberta.model_copy(update={"llm_modelo": "m"}))
+    oa = bot_app.criar_llm(
+        aberta.model_copy(update={"llm_modelo": "m", "openai_api_key": SecretStr("o")})
+    )
+    assert oa is not None and oa._api_key == "o"  # type: ignore[attr-defined]
+    # Outro endereço: sem chave é permitido (modelo local) e a chave da OpenAI não vaza.
+    local = bot_app.criar_llm(
+        aberta.model_copy(
+            update={
+                "llm_modelo": "m",
+                "llm_base_url": "http://localhost:11434/v1",
+                "openai_api_key": SecretStr("o"),
+            }
+        )
+    )
+    assert local is not None and local._api_key is None  # type: ignore[attr-defined]
+    assert local._url == "http://localhost:11434/v1/chat/completions"  # type: ignore[attr-defined]

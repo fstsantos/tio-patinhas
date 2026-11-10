@@ -376,6 +376,8 @@ async def test_listagem_ordenacao(cliente: httpx.AsyncClient, pessoas: dict[str,
     assert await ordem("ordem=valor&dir=asc") == [a, c, b]
     assert await ordem("ordem=valor&dir=desc") == [b, c, a]
     assert await ordem("ordem=tipo") == [c, a, b]  # Crédito, Débito, Receita
+    assert await ordem("ordem=descricao") == [a, b, c]  # Aluguel, Bônus, Celular
+    assert await ordem("ordem=descricao&dir=desc") == [c, b, a]
     assert await ordem("ordem=titular") == [c, b, a]  # Ana (mais recente primeiro), Bia
     assert await ordem("ordem=titular&dir=desc") == [a, c, b]
     assert await ordem("ordem=origem") == [c, a, b]  # todos da web: vale o desempate por data

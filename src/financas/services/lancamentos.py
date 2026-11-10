@@ -447,7 +447,7 @@ class FiltroLancamentos:
 
 
 # Campos pelos quais a listagem pode ser ordenada (padrão: data, mais recente primeiro).
-CAMPOS_ORDENACAO = ("codigo", "data", "tipo", "titular", "origem", "valor")
+CAMPOS_ORDENACAO = ("codigo", "data", "tipo", "descricao", "titular", "origem", "valor")
 
 
 @dataclass(frozen=True, slots=True)
@@ -511,6 +511,8 @@ async def listar(
     coluna: Any = {
         "codigo": Lancamento.id,
         "tipo": Lancamento.tipo,
+        # Sem acentos e sem maiúsculas: "água" fica junto de "Agua".
+        "descricao": Lancamento.descricao_normalizada,
         "titular": func.lower(titular.nome),
         "origem": Lancamento.origem,
         "valor": Lancamento.valor_total,

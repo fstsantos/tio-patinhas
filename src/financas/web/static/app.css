@@ -43,7 +43,8 @@ a { color: var(--primaria); }
 .topo-interno { max-width: 1200px; margin: 0 auto; padding: .6rem 1rem; display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; }
 .marca { color: #fff; font-weight: 700; text-decoration: none; font-size: 1.1rem; display: inline-flex; align-items: center; gap: .5rem; }
 .marca-icone { display: block; flex: none; }
-.marca-login { display: flex; align-items: center; gap: .6rem; }
+.marca-login { display: flex; flex-direction: column; align-items: center; gap: .5rem; text-align: center; }
+.marca-login + .sutil { text-align: center; margin-top: -.5rem; }
 .topo nav { display: flex; gap: .25rem; flex-wrap: wrap; flex: 1; }
 .topo nav a { color: #d6def0; text-decoration: none; padding: .35rem .65rem; border-radius: 6px; }
 .topo nav a[aria-current="page"], .topo nav a:hover { background: rgba(255,255,255,.12); color: #fff; }
@@ -143,6 +144,11 @@ details > summary { cursor: pointer; font-weight: 600; }
 
 @media (max-width: 640px) {
   .conta span { display: none; }
+  /* Topo no celular: marca e conta na 1ª linha; menu na 2ª, rolando de lado se faltar espaço. */
+  .topo-interno { gap: .5rem 1rem; }
+  .conta { margin-left: auto; }
+  .topo nav { order: 3; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; }
+  .topo nav a { white-space: nowrap; }
   .indicador strong { font-size: 1.2rem; }
   .detalhes { grid-template-columns: 1fr; } .detalhes dt { font-weight: 600; margin-top: .4rem; }
 }

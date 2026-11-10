@@ -97,6 +97,7 @@ _DIRECAO_PADRAO = {
     "data": "desc",
     "valor": "desc",
     "tipo": "asc",
+    "descricao": "asc",
     "titular": "asc",
     "origem": "asc",
 }

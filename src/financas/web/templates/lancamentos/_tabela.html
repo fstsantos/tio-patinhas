@@ -8,7 +8,7 @@
 {% if resultado.itens %}
 <div class="rolagem">
 <table class="tabela">
-  <thead><tr>{{ th('codigo', 'Código') }}{{ th('data', 'Data') }}{{ th('tipo', 'Tipo') }}<th>Descrição</th>{{ th('titular', 'Titular') }}{{ th('origem', 'Origem') }}{{ th('valor', 'Valor', 'num') }}</tr></thead>
+  <thead><tr>{{ th('codigo', 'Código') }}{{ th('data', 'Data') }}{{ th('tipo', 'Tipo') }}{{ th('descricao', 'Descrição') }}{{ th('titular', 'Titular') }}{{ th('origem', 'Origem') }}{{ th('valor', 'Valor', 'num') }}</tr></thead>
   <tbody>
   {% for item in resultado.itens %}{% set l = item.lancamento %}
     <tr class="{% if l.status == 'CANCELADO' %}linha-cancelada{% endif %}">

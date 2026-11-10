@@ -20,3 +20,6 @@ PROGRESSO.md
 # Faturas de cartão (têm agência e conta)
 faturas/
 *.xlsx
+
+# Original do ícone (as versões usadas ficam em src/financas/web/static/)
+tio-patinhas-icon.jpg

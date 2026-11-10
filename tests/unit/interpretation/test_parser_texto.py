@@ -50,10 +50,16 @@ def test_data_opcional(sufixo: str, data: date) -> None:
     assert p(f"débito 45,00 farmácia {sufixo}") == c.Debito(D("45.00"), "farmácia", data)
 
 
-@pytest.mark.parametrize("sufixo", ["21/03", "01/01/2027", "25/12"])
-def test_data_futura_rejeitada(sufixo: str) -> None:
-    r = p(f"débito 45,00 farmácia {sufixo}")
-    assert isinstance(r, c.ErroComando) and "futuro" in r.mensagem
+@pytest.mark.parametrize(
+    ("sufixo", "data"),
+    [
+        ("21/03", date(2026, 3, 21)),
+        ("01/01/2027", date(2027, 1, 1)),
+        ("25/12", date(2026, 12, 25)),  # dd/mm sem ano: sempre o ano corrente
+    ],
+)
+def test_data_futura_aceita(sufixo: str, data: date) -> None:
+    assert p(f"débito 45,00 farmácia {sufixo}") == c.Debito(D("45.00"), "farmácia", data)
 
 
 def test_data_inexistente() -> None:

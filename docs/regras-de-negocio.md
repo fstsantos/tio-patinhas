@@ -20,9 +20,12 @@ entre parênteses.
 ## Datas financeiras
 
 - Lançamentos retroativos são permitidos.
-- **Datas futuras são proibidas para débito, ganho e crédito na v1** (decisão aprovada em
-  2026-11-09, resolvendo a divergência entre as seções 3 e 5.2 da spec). Garantido pelos
-  serviços e pelo CHECK `ck_lancamentos_data_nao_futura`.
+- **Datas futuras são permitidas** para débito, ganho e crédito (decisão de 2026-11-10,
+  que substitui a proibição aprovada em 2026-11-09; a migração `0002` removeu o CHECK
+  `ck_lancamentos_data_nao_futura`). Um lançamento futuro já conta no saldo e no
+  orçamento do mês da sua data; no crédito, as parcelas seguem a regra normal a partir
+  da data da compra. `dd/mm` sem ano vale sempre para o ano corrente. Não há limite de
+  quão no futuro a data pode ser: confira a data na confirmação.
 
 ## Parcelamento (`domain/parcelamento.py`)
 

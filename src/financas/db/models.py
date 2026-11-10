@@ -180,12 +180,6 @@ class Lancamento(TimestampsMixin, Base):
             " OR (tipo <> 'CREDITO' AND qtd_parcelas IS NULL)",
             name="qtd_parcelas",
         ),
-        CheckConstraint(
-            # updated_at = created_at na criação; numa edição, a data não pode passar
-            # do dia da edição.
-            "data_operacao <= (updated_at AT TIME ZONE 'America/Sao_Paulo')::date",
-            name="data_nao_futura",
-        ),
         CheckConstraint(PRIMEIRA_COMPETENCIA_CHECK, name="primeira_competencia"),
         CheckConstraint("length(descricao) BETWEEN 1 AND 120", name="descricao_tamanho"),
         CheckConstraint(

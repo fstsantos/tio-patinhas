@@ -121,7 +121,7 @@ async def _importar(
     try:
         async with transacao(criar_fabrica(engine)) as s:
             titular = await importacao.membro_por_nome(s, membro)
-            plano = await importacao.planejar(s, clock, titular, fatura, regras)
+            plano = await importacao.planejar(s, titular, fatura, regras)
             if not confirmar or plano.com(Situacao.ERRO):
                 return plano, 0
             return plano, len(await importacao.executar(s, clock, plano))

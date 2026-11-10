@@ -71,7 +71,7 @@ async def test_proposta_invalida_da_llm_vira_pergunta() -> None:
     for resposta in (
         {"tipo": "debito", "valor": "10.50", "descricao": "x"},
         {"tipo": "transferencia", "valor": "1", "descricao": "x"},
-        {"tipo": "debito", "valor": "10", "descricao": "x", "data": "2027-01-01"},
+        {"tipo": "debito", "valor": "10", "descricao": "x", "data": "2027-13-01"},
         {"valor": "10"},
     ):
         r = await interpretar_voz("blá blá", HOJE, llm=LLMFalsa(resposta))

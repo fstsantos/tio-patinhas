@@ -58,23 +58,24 @@ async def test_credito_gera_parcelas_e_auditoria(
 
 
 @pytest.mark.parametrize("tipo", [DEBITO, RECEITA, CREDITO])
-async def test_data_futura_rejeitada(
+async def test_data_futura_permitida(
     fabrica: async_sessionmaker[AsyncSession],
     clock,  # type: ignore[no-untyped-def]
     tipo: TipoLancamento,
 ) -> None:
     async with fabrica() as s, s.begin():
         ana = await f.membro(s)
-        with pytest.raises(DataInvalida):
-            await f.lancar(
-                s,
-                clock,
-                ana,
-                tipo,
-                "10.00",
-                data=HOJE + timedelta(days=1),
-                parcelas=2 if tipo is CREDITO else None,
-            )
+        futuro = HOJE + timedelta(days=40)  # 29/04/2026
+        r = await f.lancar(
+            s, clock, ana, tipo, "10.00", data=futuro, parcelas=2 if tipo is CREDITO else None
+        )
+        assert r.lancamento.data_operacao == futuro
+        # No crédito, as parcelas seguem a regra de sempre a partir da data da compra.
+        assert [p.competencia for p in r.parcelas] == (
+            [date(2026, 5, 1), date(2026, 6, 1)] if tipo is CREDITO else []
+        )
+    async with fabrica() as s:
+        assert await verificar_integridade(s) == []
 
 
 async def test_retroativo_permitido(fabrica: async_sessionmaker[AsyncSession], clock) -> None:  # type: ignore[no-untyped-def]

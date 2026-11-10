@@ -36,7 +36,7 @@
       {% if form.erros.descricao %}<span class="erro-campo">{{ form.erros.descricao }}</span>{% endif %}
     </label>
     <label>Data
-      <input name="data" type="date" max="{{ hoje.isoformat() }}" value="{{ v.data }}" required>
+      <input name="data" type="date" value="{{ v.data }}" required>
       {% if form.erros.data %}<span class="erro-campo">{{ form.erros.data }}</span>{% endif %}
     </label>
     <label>Categoria (opcional)

@@ -423,7 +423,7 @@ class Processador:
 
     def _acao_confirmar_voz(self, msg: Mensagem, cmd: c.Lancamento, ouvi: str) -> Acao:
         async def acao(s: AsyncSession, ator: Membro) -> tuple[Resposta, int | None]:
-            svc.validar_dados(_dados_lancamento(cmd), self.clock.hoje())
+            svc.validar_dados(_dados_lancamento(cmd))
             conf = await confirmacoes.criar(
                 s,
                 self.clock,

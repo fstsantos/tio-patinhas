@@ -81,7 +81,7 @@ Sem `TELEGRAM_WEBHOOK_URL` o bot usa *polling*; com ela, *webhook* (nuvem).
 
 Palavras-chave sem distinção de acentos e maiúsculas; aceita `/debito` e
 `/debito@SeuBot`. Data opcional: `ontem`, `dd/mm` ou `dd/mm/aaaa`; datas futuras são
-recusadas. Valores: vírgula decimal (`10,50`), ponto só como milhar (`1.000`).
+aceitas (`dd/mm` vale para o ano corrente). Valores: vírgula decimal (`10,50`), ponto só como milhar (`1.000`).
 
 ### Voz
 
@@ -187,7 +187,6 @@ gerenciado e segredos no gerenciador da plataforma.
   saldo entre meses.
 - Parcelas individuais não são editáveis nem canceláveis.
 - Perguntas de esclarecimento da voz não guardam contexto: reenvie o comando completo.
-- Datas futuras não são aceitas (débito, ganho e crédito).
 
 ## Funcionalidades futuras
 

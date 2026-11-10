@@ -251,7 +251,7 @@ Dicas de valores:
 • Use vírgula nos centavos: 10,50 (não 10.50)
 • Ponto só para milhar: 1.000 ou 12.345,67
 • No máximo duas casas decimais; R$ é opcional
-• Datas futuras não são aceitas
+• dd/mm sem ano vale para o ano corrente; datas futuras são aceitas
 
 Voz: envie um áudio, ex.: "débito de dez reais e cinquenta no mercado".
 Todo comando de voz pede confirmação antes de registrar."""

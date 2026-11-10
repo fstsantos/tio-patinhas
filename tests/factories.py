@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from itertools import count
+from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,3 +69,32 @@ async def lancar(
         categoria_id=categoria_id,
     )
     return await svc.criar(s, clock, ator, dados, origem=origem)
+
+
+def planilha_fatura(
+    caminho: Path,
+    linhas: list[tuple[date, str, str | None, float]],
+    *,
+    titulo: str = "Fatura Fechada - Novembro/2026",
+    total: float | None = None,
+) -> Path:
+    """Planilha no layout da fatura fechada do Itaú: (data, lançamento, parcelamento, valor).
+
+    Sem ``total``, usa a soma das linhas que não são pagamento da fatura anterior.
+    """
+    from openpyxl import Workbook
+
+    if total is None:
+        total = round(sum(v for _d, nome, _p, v in linhas if not nome.startswith("Pagamento")), 2)
+    wb = Workbook()
+    ws = wb.active
+    assert ws is not None
+    ws["B8"], ws["B9"], ws["G9"], ws["G10"] = titulo, "Cartão", "Valor", total
+    ws["B13"] = "Lançamentos"
+    ws.append([None, "Data", "Lançamento", "Parcelamento", "Valor", None, "Titularidade"])
+    for dia, nome, parcelamento, valor in linhas:
+        ws.append([None, datetime(dia.year, dia.month, dia.day), nome, parcelamento, valor])
+    ws.append([])
+    ws.append([None, None, None, "Subtotal  "])
+    wb.save(caminho)
+    return caminho

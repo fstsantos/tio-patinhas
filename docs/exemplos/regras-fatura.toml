@@ -1,0 +1,15 @@
+# Exemplo de regras para `financas importar-fatura --regras <arquivo>`.
+# Guarde o seu arquivo em faturas/ (pasta fora do git).
+# Os trechos são procurados na descrição já limpa, sem acentos nem maiúsculas.
+# Vale a primeira categoria que casar; linha sem regra entra sem categoria.
+
+# Linhas descartadas (compras e estornos que não devem entrar no sistema).
+ignorar = ["loja devolvida"]
+
+[[categoria]]
+nome = "Mercado"
+trechos = ["supermercado", "atacado"]
+
+[[categoria]]
+nome = "Saúde"
+trechos = ["farmacia", "laboratorio"]

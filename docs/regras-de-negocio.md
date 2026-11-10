@@ -33,8 +33,9 @@ entre parênteses.
   até M + 2 (ex.: compra no dia 3, antes do fechamento, que já está na fatura de M; ou
   compra depois do fechamento que cai em M + 2). Então a parcela *k* pertence a
   `primeira_competencia` + (*k* − 1). Vazio = regra padrão. Validado no domínio e por
-  CHECK no banco (`ck_lancamentos_primeira_competencia`). Informado pela web; o bot
-  sempre usa a regra padrão.
+  CHECK no banco (`ck_lancamentos_primeira_competencia`). Informado pela web e pela
+  importação de fatura (mês da fatura − (*k* − 1), ver `docs/operacao.md` e ADR 0005); o
+  bot sempre usa a regra padrão.
 - Centavos: base = total ÷ n truncada; o resto em centavos vai, R$ 0,01 cada, para as
   primeiras parcelas. Ex.: R$ 100,00 / 3 = 33,34 + 33,33 + 33,33. Soma sempre exata.
 - Cada parcela precisa de ao menos R$ 0,01 (total em centavos ≥ n).

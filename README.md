@@ -30,6 +30,7 @@ uv run alembic upgrade head      # aplica (DATABASE_URL do .env)
 uv run alembic downgrade -1      # reverte a última
 uv run financas criar-admin      # primeiro administrador
 uv run financas verificar-integridade
+uv run financas importar-fatura faturas/<arquivo>.xlsx --membro <nome>  # prévia; ver docs/operacao.md
 ```
 
 O esquema é criado somente por migrações Alembic (`migrations/versions/`).

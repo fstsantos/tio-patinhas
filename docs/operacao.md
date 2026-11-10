@@ -77,6 +77,42 @@ make restore DOCKER=1 ARQUIVO=backups/financas-AAAAMMDDTHHMMSSZ.dump
 
 O `.env` não é versionado (`.gitignore`). Na nuvem, use o gerenciador de segredos.
 
+## Importação de fatura de cartão (Itaú)
+
+Exporte a fatura **fechada** em `.xlsx` pelo site do Itaú e guarde em `faturas/` (a
+pasta e qualquer `*.xlsx` ficam fora do git: a planilha traz agência e conta).
+
+```bash
+make backup DOCKER=1
+# prévia: mostra cada linha, a categoria e a situação; não grava nada
+make importar-fatura DOCKER=1 ARQUIVO="faturas/<arquivo>.xlsx" \
+  ARGS="--membro <nome> --regras faturas/regras-itau.toml"
+# grava (uma única transação) e confere
+make importar-fatura DOCKER=1 ARQUIVO="faturas/<arquivo>.xlsx" \
+  ARGS="--membro <nome> --regras faturas/regras-itau.toml --confirmar"
+make integridade DOCKER=1
+```
+
+- Cada linha vira uma compra no crédito do membro informado (que também é o autor, com
+  origem `CLI`). O pagamento da fatura anterior é descartado; a soma das demais linhas
+  precisa bater com o total da fatura.
+- Parcelas: "Parcela *k* de *N*" vira a compra inteira (parcela × *N*), com a 1ª parcela
+  no mês da fatura − (*k* − 1). Parcelados antigos criam parcelas em meses passados.
+- Regras (`--regras`, TOML; exemplo em `docs/exemplos/regras-fatura.toml`): `ignorar`
+  descarta linhas; `[[categoria]]` define a categoria por trecho da descrição.
+  Categorias que não existem são criadas (exige membro administrador). Linha sem regra
+  entra sem categoria.
+- Valor negativo (estorno) sem regra em `ignorar` é erro: nada é gravado até você
+  decidir (ignorar a linha ou lançar à mão).
+- Pode repetir à vontade: compras já importadas aparecem como "já existe". A comparação
+  é por titular, data, descrição, parcelas e valor — se você editar um desses campos
+  depois, a próxima importação verá a compra como nova (confira a prévia).
+- A linha "Parcelas desta fatura em <mês>" deve ser igual ao total da fatura menos o que
+  foi ignorado.
+- O nome do estabelecimento vem colado à cidade ("Petshopsao Paulobra"); a limpeza
+  conhece as cidades mais comuns (`CIDADES_PADRAO` em `integrations/fatura/itau.py`).
+  Cidade desconhecida fica na descrição — acrescente-a à lista.
+
 ## Manutenção do banco
 
 - Auditoria é somente de inserção (trigger). Para o usuário da aplicação em produção,

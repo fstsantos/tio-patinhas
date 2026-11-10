@@ -14,7 +14,7 @@ else
 endif
 
 .PHONY: help install lint format typecheck test test-unit test-integration cov check \
-        up down logs migrate migrate-down criar-admin integridade test-docker \
+        up down logs migrate migrate-down criar-admin integridade importar-fatura test-docker \
         web bot backup restore
 
 help:  ## Lista os alvos
@@ -68,6 +68,15 @@ criar-admin:  ## Cria um administrador (ARGS="--telegram-id <id>")
 
 integridade:  ## Verifica integridade de compras e parcelas
 	$(RUN) financas verificar-integridade
+
+importar-fatura:  ## Importa fatura do Itaú: ARQUIVO=faturas/x.xlsx ARGS="--membro Nome [--regras faturas/regras.toml] [--confirmar]"
+ifeq ($(DOCKER),1)
+	$(COMPOSE) up -d --wait db
+	$(COMPOSE) run --rm --no-deps -v "$(CURDIR)/faturas:/app/faturas:ro" web \
+		financas importar-fatura "$(ARQUIVO)" $(ARGS)
+else
+	$(UV) run financas importar-fatura "$(ARQUIVO)" $(ARGS)
+endif
 
 test-docker:  ## Testes contra o PostgreSQL isolado de compose.test.yaml
 	$(COMPOSE) -f compose.test.yaml up -d --wait

@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from financas import cli
 from financas.config import get_settings
-from financas.db.models import Membro
+from financas.db.models import Auditoria, Membro
 from financas.db.session import normalizar_url
 from financas.services import senhas
 
@@ -37,7 +37,16 @@ def test_criar_admin(
     engine = create_engine(normalizar_url(banco_migrado))
     with Session(engine) as s:
         m = s.execute(select(Membro)).scalar_one()
+        reg = s.execute(select(Auditoria)).scalar_one()
     engine.dispose()
+    # Passa pelo serviço de membros: fica na auditoria, com origem CLI e sem autor.
+    assert (reg.entidade, reg.entidade_id, reg.acao, reg.origem, reg.autor_id) == (
+        "membro",
+        m.id,
+        "CRIACAO",
+        "CLI",
+        None,
+    )
     assert (m.nome, m.login_web, m.papel, m.telegram_user_id, m.ativo) == (
         "Ana",
         "ana",
@@ -49,7 +58,27 @@ def test_criar_admin(
 
     repetido = runner.invoke(cli.app, ["criar-admin", "--nome", "Outra", "--login", "ANA"])
     assert repetido.exit_code == 1
-    assert "já existe" in repetido.output
+    assert "já está em uso" in repetido.output
+
+    # id do Telegram repetido: mensagem clara, sem traceback.
+    mesmo_tg = runner.invoke(
+        cli.app, ["criar-admin", "--nome", "Bia", "--login", "bia", "--telegram-id", "123"]
+    )
+    assert mesmo_tg.exit_code == 1
+    assert "já pertence a Ana" in mesmo_tg.output
+
+
+@pytest.mark.parametrize(
+    ("login", "senha", "trecho"),
+    [("a b", "senha-muito-forte", "Login:"), ("ana", "curta", "pelo menos 10")],
+)
+def test_criar_admin_valida_como_a_web(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch, login: str, senha: str, trecho: str
+) -> None:
+    monkeypatch.setattr(cli.getpass, "getpass", lambda _prompt: senha)
+    r = runner.invoke(cli.app, ["criar-admin", "--nome", "Ana", "--login", login])
+    assert r.exit_code == 1
+    assert trecho in r.output
 
 
 def test_criar_admin_senhas_diferentes(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:

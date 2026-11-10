@@ -148,8 +148,9 @@ def resumo_mensal(r: ResumoMensal, filtro: str | None = None) -> list[str]:
             "PROJEÇÃO (informativo, fora do saldo)",
             f"Compras no crédito feitas neste mês: {R(r.total_credito_contratado)} "
             f"({len(r.compras_credito)} compra(s))",
-            "Impacto previsto nos meses seguintes:",
         ]
+        if r.impacto_futuro:
+            proj.append("Impacto previsto nos meses seguintes:")
         proj += [f"  {m.abreviado}: {R(v)}" for m, v in r.impacto_futuro[:12]]
         if len(r.impacto_futuro) > 12:
             proj.append(f"  … e mais {len(r.impacto_futuro) - 12} meses")

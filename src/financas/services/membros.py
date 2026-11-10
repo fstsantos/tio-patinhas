@@ -88,6 +88,24 @@ async def _conferir_unicos(s: AsyncSession, d: DadosMembro, membro_id: int | Non
 
 async def criar(s: AsyncSession, clock: Clock, ator: Membro, dados: DadosMembro) -> Membro:
     autorizacao.exigir_admin(ator)
+    return await _criar(s, clock, dados, autor_id=ator.id, origem=Origem.WEB)
+
+
+async def criar_admin_cli(s: AsyncSession, clock: Clock, dados: DadosMembro) -> Membro:
+    """``financas criar-admin``: não há ator (é assim que nasce o 1º administrador).
+
+    Mesmas validações e auditoria da criação pela web, com origem ``CLI``.
+    """
+    if dados.papel is not Papel.ADMIN or not dados.ativo:
+        raise OperacaoInvalida("A linha de comando só cria administradores ativos.")
+    if not (dados.login_web or "").strip():
+        raise OperacaoInvalida("Informe o login web.")
+    return await _criar(s, clock, dados, autor_id=None, origem=Origem.CLI)
+
+
+async def _criar(
+    s: AsyncSession, clock: Clock, dados: DadosMembro, *, autor_id: int | None, origem: Origem
+) -> Membro:
     d = _normalizar(dados)
     await _conferir_unicos(s, d, None)
     if d.login_web and not d.senha:
@@ -111,8 +129,8 @@ async def criar(s: AsyncSession, clock: Clock, ator: Membro, dados: DadosMembro)
         acao=AcaoAuditoria.CRIACAO,
         entidade=ENTIDADE,
         entidade_id=m.id,
-        autor_id=ator.id,
-        origem=Origem.WEB,
+        autor_id=autor_id,
+        origem=origem,
         depois=_foto(m),
     )
     return m

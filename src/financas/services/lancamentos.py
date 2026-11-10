@@ -338,7 +338,9 @@ async def editar(
     if novos.tipo.value != lanc.tipo:
         raise OperacaoInvalida("O tipo do lançamento não pode ser alterado.")
     novos = validar_dados(novos, clock.hoje())
-    await _validar_categoria(s, novos.categoria_id, novos.tipo)
+    # Categoria mantida não é revalidada: ela pode ter sido desativada depois.
+    if novos.categoria_id != lanc.categoria_id:
+        await _validar_categoria(s, novos.categoria_id, novos.tipo)
     motivo = _validar_motivo(motivo)
 
     parcelas = await parcelas_vigentes(s, lanc.id)

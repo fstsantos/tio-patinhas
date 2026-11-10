@@ -15,9 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from financas.bot.processador import Mensagem, Processador, Resposta
 from financas.db.models import ConfirmacaoPendente, Lancamento, UpdateProcessado
 from financas.domain.calendario import Mes
+from financas.domain.erros import OperacaoInvalida
+from financas.integrations.llm.base import LLMFalsa
 from financas.integrations.stt.base import ErroTranscricao
 from financas.integrations.stt.falso import TranscricaoFalsa
+from financas.services import lancamentos as svc
 from financas.services import relatorios
+from financas.services.integridade import verificar_integridade
 from tests import factories as f
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("limpar_banco")]
@@ -282,6 +286,87 @@ async def test_voz_exige_confirmacao(
         assert await s.scalar(select(Lancamento.origem)) == "TELEGRAM_VOZ"
     assert (await _confirmar(bot, r)).alerta
     assert await contar(fabrica, Lancamento) == 1
+
+
+DOIS = {
+    "lancamentos": [
+        {
+            "tipo": "debito",
+            "valor": "20,00",
+            "parcelas": None,
+            "descricao": "cerveja",
+            "data": None,
+        },
+        {"tipo": "credito", "valor": "300,00", "parcelas": 3, "descricao": "tênis", "data": None},
+    ],
+    "duvida": None,
+}
+FALA_DUPLA = "um débito de 20 reais de cerveja e um crédito de 300 em 3 vezes de tênis"
+
+
+async def test_voz_com_varios_lancamentos(
+    bot: Processador, fabrica: async_sessionmaker[AsyncSession], caplog: pytest.LogCaptureFixture
+) -> None:
+    bot.stt = TranscricaoFalsa(FALA_DUPLA)
+    bot.llm = LLMFalsa(DOIS)
+    with caplog.at_level(logging.INFO):
+        r = await bot.voz(msg(None), b"ogg")
+    assert r is not None and [b.rotulo for b in r.botoes] == ["✅ Confirmar todos", "❌ Cancelar"]
+    texto = r.textos[0]
+    assert "Entendi 2 lançamentos:" in texto and "Confirma o registro de todos?" in texto
+    assert "1. Débito R$ 20,00 · cerveja · 20/03/2026" in texto
+    assert "2. Crédito R$ 300,00 em 3x · tênis · compra em 20/03/2026" in texto
+    voz = next(x for x in caplog.records if x.message == "voz_interpretada").__dict__
+    assert voz["lancamentos_no_lote"] == 2 and voz["via_llm"] and voz["comando"] is None
+    assert await contar(fabrica, Lancamento) == 0
+    assert await contar(fabrica, ConfirmacaoPendente) == 1
+
+    ok = await _confirmar(bot, r)
+    assert "2 lançamentos registrados" in ok.texto
+    assert "Débito R$ 20,00 · cerveja" in ok.texto and "Crédito R$ 300,00 em 3x · tênis" in ok.texto
+    async with fabrica() as s:
+        lancs = list((await s.execute(select(Lancamento).order_by(Lancamento.id))).scalars())
+        assert [(x.tipo, x.valor_total, x.origem) for x in lancs] == [
+            ("DEBITO", Decimal("20.00"), "TELEGRAM_VOZ"),
+            ("CREDITO", Decimal("300.00"), "TELEGRAM_VOZ"),
+        ]
+        conf = (await s.execute(select(ConfirmacaoPendente))).scalar_one()
+        assert conf.lancamento_id == lancs[0].id and conf.status == "EXECUTADA"
+        assert await verificar_integridade(s) == []
+    assert (await _confirmar(bot, r)).alerta  # segundo clique não duplica
+    assert await contar(fabrica, Lancamento) == 2
+
+
+async def test_lote_de_voz_cancelado_ou_invalido(
+    bot: Processador, fabrica: async_sessionmaker[AsyncSession]
+) -> None:
+    bot.stt = TranscricaoFalsa(FALA_DUPLA)
+    bot.llm = LLMFalsa(DOIS)
+    r = await bot.voz(msg(None), b"ogg")
+    assert r is not None
+    assert "Nada foi registrado" in (await _confirmar(bot, r, sim=False)).texto
+    assert await contar(fabrica, Lancamento) == 0
+
+    # Se um item falhar ao gravar, nenhum entra.
+    r = await bot.voz(msg(None), b"ogg")
+    assert r is not None
+    original = svc.criar
+    chamadas = 0
+
+    async def falha_no_segundo(*a: object, **k: object):  # type: ignore[no-untyped-def]
+        nonlocal chamadas
+        chamadas += 1
+        if chamadas == 2:
+            raise OperacaoInvalida("falhou")
+        return await original(*a, **k)  # type: ignore[arg-type]
+
+    svc.criar = falha_no_segundo  # type: ignore[assignment]
+    try:
+        falha = await _confirmar(bot, r)
+    finally:
+        svc.criar = original
+    assert "Não foi possível concluir" in falha.texto
+    assert await contar(fabrica, Lancamento) == 0
 
 
 async def test_voz_cancelada_nao_registra(

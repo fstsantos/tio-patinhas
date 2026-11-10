@@ -34,10 +34,46 @@ Sem Docker: `uv sync --extra voz`, `uv run alembic upgrade head`,
 - Tokens do Telegram, chaves `sk-…`, senhas e a senha do `DATABASE_URL` são mascarados
   por `financas.logging.mascarar`; campos com nomes sensíveis (`senha`, `token`…) viram `***`.
 - Mensagens de pessoas/chats não autorizados **não** são registradas.
-- Eventos úteis: `comando` (tipo e `membro_id`, sem o texto), `voz_interpretada`,
-  `transcricao_falhou`, `llm_indisponivel`, `erro_no_handler` (com `update_id`).
+- Eventos úteis: `comando`, `voz_interpretada` (com `via_llm`), `transcricao_falhou`,
+  `llm_chamada` (provedor, modelo e consumo de tokens de cada chamada),
+  `llm_indisponivel`, `erro_no_handler` (com `update_id`).
 - Saúde da web: `GET /health`.
 - Integridade: `uv run financas verificar-integridade` (código de saída 1 se houver problemas).
+
+## LLM para interpretar áudios (opcional)
+
+O áudio é transcrito e interpretado na própria máquina. Só quando isso falha — fala
+livre, data por extenso, vários lançamentos no mesmo áudio — a transcrição é enviada a
+uma LLM. Desligada por padrão.
+
+Ligar (no `.env`, depois `docker compose up -d --force-recreate bot`):
+
+```bash
+# Claude (padrão do provedor: claude-haiku-5-5)
+LLM_PROVEDOR=anthropic
+LLM_API_KEY=<chave>
+
+# OpenAI ou qualquer serviço compatível com "chat completions"
+LLM_PROVEDOR=openai
+LLM_MODELO=<modelo>
+LLM_API_KEY=<chave>
+LLM_BASE_URL=<endereço do serviço>   # vazio = https://api.openai.com/v1
+```
+
+Trocar de provedor é mudar essas linhas. Validar antes de usar no grupo (não grava
+nada; aqui a LLM é sempre chamada):
+
+```bash
+make testar-llm DOCKER=1 FRASE="um débito de 20 de cerveja e outro de 15 de petisco"
+```
+
+- Custo: cada chamada envia cerca de 700 tokens e recebe menos de 200; o evento
+  `llm_chamada` nos logs do bot registra o consumo real de cada uma.
+- Privacidade: saem da máquina a transcrição e a data de hoje; nada do banco.
+- Sem internet, com a chave errada ou com a LLM lenta (`LLM_TIMEOUT_SEGUNDOS`), o bot
+  responde com o resultado local, como se a LLM estivesse desligada.
+- Novo provedor que não seja compatível: uma classe com `completar_json` em
+  `integrations/llm/` e um `case` em `integrations/llm/__init__.py`.
 
 ## Backup e restauração
 

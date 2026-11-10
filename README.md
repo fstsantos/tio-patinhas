@@ -58,7 +58,7 @@ o conteúdo seja registrado nos logs.
 ### Execução
 
 ```bash
-uv sync --extra voz --extra llm   # faster-whisper (voz) e SDK da Anthropic (LLM opcional)
+uv sync --extra voz --extra llm   # faster-whisper (voz) e SDK da Anthropic (um dos provedores de LLM)
 uv run python -m financas.bot.app
 ```
 
@@ -123,7 +123,7 @@ src/financas/
 ├── db/              # modelos ORM e sessão
 ├── services/        # lançamentos, relatórios, autorização, auditoria, confirmações…
 ├── interpretation/  # parser de texto, números falados, interpretador de voz
-├── integrations/    # transcrição (faster-whisper, OpenAI) e LLM (interface)
+├── integrations/    # transcrição (faster-whisper, OpenAI) e LLM (Anthropic, compatível com OpenAI)
 ├── bot/             # processador (independente do Telegram), handlers, formatação
 ├── web/             # FastAPI: auth, rotas, templates Jinja2, static (CSS/JS)
 └── config.py · logging.py · clock.py · cli.py
@@ -169,9 +169,13 @@ restauração: `scripts/restore.sh <arquivo> --sim` seguida de
 | Telegram Bot API | bot | sim |
 | faster-whisper (local; baixa o modelo do Hugging Face na 1ª vez) | transcrição padrão | para voz |
 | OpenAI (transcrição) | `STT_PROVEDOR=openai` | não |
-| Anthropic (Claude) | `LLM_PROVEDOR=anthropic`: propõe comandos de voz que o parser não entendeu; nunca grava nada | não |
+| LLM (Anthropic, OpenAI ou serviço compatível) | `LLM_PROVEDOR=anthropic` ou `openai`: interpreta os áudios que as regras locais não entenderam; nunca grava nada | não |
 
-Nenhuma regra financeira depende de LLM. A LLM recebe só a transcrição do áudio.
+Nenhuma regra financeira depende de LLM. O áudio é sempre interpretado primeiro na
+própria máquina; a LLM só é chamada se isso falhar, recebe apenas a transcrição e a data
+de hoje, e o que ela propõe passa pelo mesmo parser e pela sua confirmação. Com LLM, um
+áudio pode trazer vários lançamentos, confirmados de uma vez. Configuração e troca de
+provedor: [`docs/operacao.md`](docs/operacao.md).
 
 ## Implantação em nuvem
 

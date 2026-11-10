@@ -59,23 +59,117 @@ async def test_perguntas(falado: str, trecho: str) -> None:
     assert r.pergunta is not None and trecho.lower() in r.pergunta.lower()
 
 
+def _um(**campos: object) -> dict[str, object]:
+    return {"lancamentos": [_item(**campos)], "duvida": None}
+
+
+def _item(**campos: object) -> dict[str, object]:
+    return {
+        "tipo": "debito",
+        "valor": "10,00",
+        "parcelas": None,
+        "descricao": "x",
+        "data": None,
+    } | campos
+
+
 async def test_llm_usada_quando_heuristica_falha() -> None:
-    llm = LLMFalsa({"tipo": "debito", "valor": "32,90", "descricao": "uber", "data": None})
+    llm = LLMFalsa(_um(valor="32,90", descricao="uber"))
     r = await interpretar_voz("aquela corrida custou trinta e dois e noventa", HOJE, llm=llm)
     assert r.comando == c.Debito(D("32.90"), "uber", HOJE)
-    assert r.via_llm
-    assert llm.chamadas
+    assert r.via_llm and r.lote == ()
+    assert "Hoje é 2026-03-20 (sexta)" in llm.chamadas[0]
+
+
+async def test_local_primeiro_llm_nao_e_chamada() -> None:
+    llm = LLMFalsa(_um(valor="999,00"))
+    r = await interpretar_voz("gastei cinquenta reais na padaria", HOJE, llm=llm)
+    assert r.comando == c.Debito(D("50.00"), "padaria", HOJE) and not r.via_llm
+    assert llm.chamadas == []
+
+
+async def test_varios_lancamentos_no_mesmo_audio() -> None:
+    falado = (
+        "registra pra mim um débito no valor de 20 reais de cerveja "
+        "e um débito de 15 reais de petisco"
+    )
+    resposta = {
+        "lancamentos": [
+            _item(valor="20,00", descricao="cerveja"),
+            _item(valor="15,00", descricao="petisco"),
+            _item(tipo="credito", valor="300,00", parcelas=3, descricao="tênis", data="2026-03-25"),
+        ],
+        "duvida": None,
+    }
+    r = await interpretar_voz(falado, HOJE, llm=LLMFalsa(resposta))
+    assert r.comando is None and r.pergunta is None and r.via_llm
+    assert r.lote == (
+        c.Debito(D("20.00"), "cerveja", HOJE),
+        c.Debito(D("15.00"), "petisco", HOJE),
+        c.Credito(D("300.00"), 3, "tênis", date(2026, 3, 25)),
+    )
+    # Sem LLM, o mesmo áudio continua virando pergunta.
+    assert "mais de um valor" in ((await interpretar_voz(falado, HOJE)).pergunta or "")
+
+
+async def test_data_por_extenso_e_centavos_via_llm() -> None:
+    llm = LLMFalsa(_um(tipo="ganho", valor="4.321,50", descricao="salário", data="2026-11-15"))
+    r = await interpretar_voz(
+        "lançar receita no dia 15 de novembro no valor de R$ 4.321 e 50 centavos", HOJE, llm=llm
+    )
+    assert r.comando == c.Ganho(D("4321.50"), "salário", date(2026, 11, 15))
+
+
+async def test_local_suspeito_pede_segunda_opiniao() -> None:
+    # O parser entende um débito só, com o segundo lançamento engolido na descrição.
+    falado = "débito 20 cerveja débito 15 petisco"
+    local = await interpretar_voz(falado, HOJE)
+    assert local.comando == c.Debito(D("20.00"), "cerveja débito 15 petisco", HOJE)
+    dois = {
+        "lancamentos": [
+            _item(valor="20", descricao="cerveja"),
+            _item(valor="15", descricao="petisco"),
+        ],
+        "duvida": None,
+    }
+    r = await interpretar_voz(falado, HOJE, llm=LLMFalsa(dois))
+    assert [x.descricao for x in r.lote] == ["cerveja", "petisco"]
+    # LLM fora do ar, sem proposta ou com proposta inválida: vale o resultado local.
+    for llm in (
+        LLMFalsa(erro=ErroLLM("fora do ar")),
+        LLMFalsa(None),
+        LLMFalsa({"lancamentos": [], "duvida": "não entendi"}),
+        LLMFalsa({"lancamentos": [_item(valor="10.50")], "duvida": None}),
+    ):
+        assert (await interpretar_voz(falado, HOJE, llm=llm)).comando == local.comando
 
 
 async def test_proposta_invalida_da_llm_vira_pergunta() -> None:
     for resposta in (
-        {"tipo": "debito", "valor": "10.50", "descricao": "x"},
-        {"tipo": "transferencia", "valor": "1", "descricao": "x"},
-        {"tipo": "debito", "valor": "10", "descricao": "x", "data": "2027-13-01"},
-        {"valor": "10"},
+        _um(valor="10.50"),
+        _um(tipo="transferencia"),
+        _um(data="2027-13-01"),
+        _um(tipo="credito", parcelas=None),
+        {"lancamentos": [{"valor": "10"}], "duvida": None},
+        # Um item inválido derruba o lote inteiro.
+        {"lancamentos": [_item(), _item(valor="abc")], "duvida": None},
+        {"lancamentos": [_item()] * 11, "duvida": None},
+        {"lancamentos": "nada", "duvida": None},
+        {"tipo": "debito", "valor": "10", "descricao": "x"},
     ):
         r = await interpretar_voz("blá blá", HOJE, llm=LLMFalsa(resposta))
-        assert r.comando is None and r.pergunta
+        assert r.comando is None and r.lote == () and r.pergunta
+
+
+async def test_duvida_da_llm() -> None:
+    # Sem pergunta local melhor, a dúvida da LLM não substitui a pergunta determinística...
+    llm = LLMFalsa({"lancamentos": [], "duvida": "  Qual foi o\n valor da compra?  "})
+    r = await interpretar_voz("blá blá", HOJE, llm=llm)
+    assert r.comando is None and r.pergunta
+    # ...mas é ela que aparece quando a etapa local não tem pergunta própria.
+    from financas.interpretation.interpretador import interpretar_com_llm
+
+    assert await interpretar_com_llm("blá", HOJE, llm) == ((), "Qual foi o valor da compra?")
 
 
 async def test_falha_ou_timeout_da_llm() -> None:
@@ -83,7 +177,7 @@ async def test_falha_ou_timeout_da_llm() -> None:
     assert r.comando is None and r.pergunta
 
     class Lenta(LLMFalsa):
-        async def propor_comando(self, transcricao: str, hoje: date):  # type: ignore[no-untyped-def]
+        async def completar_json(self, sistema: str, usuario: str, esquema):  # type: ignore[no-untyped-def]
             import asyncio
 
             await asyncio.sleep(1)
@@ -93,7 +187,7 @@ async def test_falha_ou_timeout_da_llm() -> None:
 
 
 async def test_ambiguidade_parcela_nao_vai_para_llm() -> None:
-    llm = LLMFalsa({"tipo": "credito", "valor": "1000", "parcelas": 10, "descricao": "loja"})
+    llm = LLMFalsa(_um(tipo="credito", valor="1000", parcelas=10, descricao="loja"))
     r = await interpretar_voz("dez parcelas de cem na loja", HOJE, llm=llm)
     assert r.comando is None
     assert llm.chamadas == []

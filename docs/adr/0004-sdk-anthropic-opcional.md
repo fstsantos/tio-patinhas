@@ -1,6 +1,7 @@
 # ADR 0004 — LLM opcional via SDK oficial da Anthropic, com structured outputs
 
-- **Situação:** aceita (Etapa 5)
+- **Situação:** substituída em parte pela ADR 0006 (modelo padrão, contrato do provedor,
+  sem `fallbacks`)
 - **Contexto:** a spec prevê LLM apenas como apoio à interpretação de voz e para
   análises futuras; nenhuma regra financeira pode depender dela.
 - **Decisão:** provedor `LLMAnthropic` (extra `llm`), modelo configurável

@@ -93,3 +93,28 @@ def test_verificar_integridade_ok(runner: CliRunner) -> None:
     r = runner.invoke(cli.app, ["verificar-integridade"])
     assert r.exit_code == 0, r.output
     assert "nenhum problema" in r.output
+
+
+def test_testar_llm(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    from financas.integrations.llm.base import ErroLLM, LLMFalsa
+
+    r = runner.invoke(cli.app, ["testar-llm", "débito 10 mercado"])
+    assert r.exit_code == 1 and "Nenhuma LLM configurada" in r.output
+
+    dois = {
+        "lancamentos": [
+            {"tipo": "debito", "valor": "20", "parcelas": None, "descricao": "a", "data": None},
+            {"tipo": "ganho", "valor": "15", "parcelas": None, "descricao": "b", "data": None},
+        ],
+        "duvida": None,
+    }
+    for llm, codigo, trechos in (
+        (LLMFalsa(dois), 0, ["1. Debito(", "2. Ganho(", "Provedor:"]),
+        (LLMFalsa({"lancamentos": [], "duvida": "Qual o valor?"}), 0, ["Dúvida: Qual o valor?"]),
+        (LLMFalsa(None), 0, ["não propôs nenhum lançamento"]),
+        (LLMFalsa(erro=ErroLLM("timeout na LLM")), 1, ["Falha: timeout na LLM"]),
+    ):
+        monkeypatch.setattr(cli, "criar_llm", lambda _cfg, llm=llm: llm)
+        r = runner.invoke(cli.app, ["testar-llm", "um débito de 20 e um ganho de 15"])
+        assert r.exit_code == codigo, r.output
+        assert all(t in r.output for t in trechos), r.output

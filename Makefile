@@ -14,7 +14,7 @@ else
 endif
 
 .PHONY: help install lint format typecheck test test-unit test-integration cov check \
-        up down logs migrate migrate-down criar-admin integridade importar-fatura test-docker \
+        up down logs migrate migrate-down criar-admin integridade importar-fatura testar-llm test-docker \
         web bot backup restore
 
 help:  ## Lista os alvos
@@ -77,6 +77,9 @@ ifeq ($(DOCKER),1)
 else
 	$(UV) run financas importar-fatura "$(ARQUIVO)" $(ARGS)
 endif
+
+testar-llm:  ## Envia FRASE="..." à LLM configurada e mostra o que ela entendeu
+	$(RUN) financas testar-llm "$(FRASE)"
 
 test-docker:  ## Testes contra o PostgreSQL isolado de compose.test.yaml
 	$(COMPOSE) -f compose.test.yaml up -d --wait

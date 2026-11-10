@@ -49,6 +49,7 @@ from financas.services.lancamentos import DadosLancamento
 log = logging.getLogger(__name__)
 
 PREFIXO_CONFIRMACAO = "c"
+CHAVE_LOTE = "lote"  # payload de confirmação com vários lançamentos de um áudio
 REENVIAR = "Envie de novo, por voz ou texto, com essa informação."
 
 
@@ -252,12 +253,17 @@ class Processador:
             extra={
                 "transcricao": transcricao.strip(),
                 **(_campos_comando(cmd) if cmd is not None else {"comando": None}),
+                "lancamentos_no_lote": len(interp.lote) or None,
                 "via_llm": interp.via_llm,
-                "pergunta": interp.pergunta if cmd is None else None,
+                "pergunta": interp.pergunta if cmd is None and not interp.lote else None,
                 "origem": "voz",
                 **_contexto(msg, membro),
             },
         )
+        if interp.lote:
+            return await self._idempotente(
+                msg, self._acao_confirmar_voz(msg, list(interp.lote), ouvi)
+            )
         if cmd is None:
             pergunta = interp.pergunta or "Não entendi."
             return await self._idempotente(
@@ -265,7 +271,7 @@ class Processador:
                 _fixa(Resposta([f"{ouvi}\n\n❓ {pergunta}\n{REENVIAR}"])),
             )
         if isinstance(cmd, c.Debito | c.Credito | c.Ganho):
-            return await self._idempotente(msg, self._acao_confirmar_voz(msg, cmd, ouvi))
+            return await self._idempotente(msg, self._acao_confirmar_voz(msg, [cmd], ouvi))
         return await self._executar(msg, membro, cmd, Origem.TELEGRAM_VOZ)
 
     async def botao(self, user_id: int, chat_id: int, dados: str) -> RespostaBotao:
@@ -421,9 +427,13 @@ class Processador:
 
         return acao
 
-    def _acao_confirmar_voz(self, msg: Mensagem, cmd: c.Lancamento, ouvi: str) -> Acao:
+    def _acao_confirmar_voz(self, msg: Mensagem, cmds: list[c.Lancamento], ouvi: str) -> Acao:
+        """Uma confirmação para o áudio inteiro: um lançamento ou um lote."""
+
         async def acao(s: AsyncSession, ator: Membro) -> tuple[Resposta, int | None]:
-            svc.validar_dados(_dados_lancamento(cmd))
+            for cmd in cmds:
+                svc.validar_dados(_dados_lancamento(cmd))
+            um = len(cmds) == 1
             conf = await confirmacoes.criar(
                 s,
                 self.clock,
@@ -431,20 +441,26 @@ class Processador:
                 membro_id=ator.id,
                 chat_id=msg.chat_id,
                 message_id=msg.message_id,
-                payload=c.lancamento_para_json(cmd),
+                payload=(
+                    c.lancamento_para_json(cmds[0])
+                    if um
+                    else {CHAVE_LOTE: [c.lancamento_para_json(cmd) for cmd in cmds]}
+                ),
             )
-            texto = f"{ouvi}\n\n{fmt.comando_de_voz(cmd)}"
-            log.info(
-                "confirmacao_solicitada",
-                extra={
-                    "tipo_confirmacao": conf.tipo,
-                    "confirmacao_id": str(conf.id),
-                    **_campos_comando(cmd),
-                    **_contexto(msg, ator),
-                },
-            )
+            entendi = fmt.comando_de_voz(cmds[0]) if um else fmt.lote_de_voz(cmds)
+            for cmd in cmds:
+                log.info(
+                    "confirmacao_solicitada",
+                    extra={
+                        "tipo_confirmacao": conf.tipo,
+                        "confirmacao_id": str(conf.id),
+                        **_campos_comando(cmd),
+                        **_contexto(msg, ator),
+                    },
+                )
+            sim = "✅ Confirmar" if um else "✅ Confirmar todos"
             return Resposta(
-                [texto], _botoes_confirmacao(conf.id, "✅ Confirmar", "❌ Cancelar")
+                [f"{ouvi}\n\n{entendi}"], _botoes_confirmacao(conf.id, sim, "❌ Cancelar")
             ), None
 
         return acao
@@ -505,20 +521,30 @@ class Processador:
         self, s: AsyncSession, ator: Membro, tipo: str, payload: dict[str, Any]
     ) -> tuple[str, int]:
         if tipo == TipoConfirmacao.LANCAMENTO.value:
-            cmd = c.lancamento_de_json(payload)
-            r = await svc.criar(
-                s, self.clock, ator, _dados_lancamento(cmd), origem=Origem.TELEGRAM_VOZ
-            )
-            log.info(
-                "lancamento_registrado",
-                extra={
-                    **_campos_lancamento(r.lancamento),
-                    "origem": Origem.TELEGRAM_VOZ.value,
-                    "membro": ator.nome,
-                    "membro_id": ator.id,
-                },
-            )
-            return fmt.lancamento_registrado(r.lancamento, r.parcelas), r.lancamento.id
+            # Lote: todos na mesma transação (o chamador abre um savepoint) — ou entram
+            # todos, ou nenhum. A confirmação guarda o código do primeiro.
+            criados = []
+            for item in payload.get(CHAVE_LOTE) or [payload]:
+                cmd = c.lancamento_de_json(item)
+                r = await svc.criar(
+                    s, self.clock, ator, _dados_lancamento(cmd), origem=Origem.TELEGRAM_VOZ
+                )
+                log.info(
+                    "lancamento_registrado",
+                    extra={
+                        **_campos_lancamento(r.lancamento),
+                        "origem": Origem.TELEGRAM_VOZ.value,
+                        "membro": ator.nome,
+                        "membro_id": ator.id,
+                    },
+                )
+                criados.append(r)
+            if len(criados) == 1:
+                unico = criados[0]
+                return fmt.lancamento_registrado(unico.lancamento, unico.parcelas), (
+                    unico.lancamento.id
+                )
+            return fmt.lote_registrado([r.lancamento for r in criados]), criados[0].lancamento.id
         lanc = await svc.cancelar(
             s,
             self.clock,

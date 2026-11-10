@@ -1,53 +1,17 @@
-"""Provedor LLM da Anthropic (opcional, extra ``llm``): propõe comandos de voz.
-
-Usa structured outputs (JSON Schema) para receber JSON válido. A proposta é só uma
-sugestão: ``interpretation.interpretador`` a valida com o mesmo parser do texto e o
-usuário confirma antes de qualquer registro. Somente a transcrição é enviada — nenhum
-dado financeiro ou pessoal do banco.
-"""
+"""Provedor LLM da Anthropic (extra ``llm``), com structured outputs (JSON Schema)."""
 
 from __future__ import annotations
 
 import json
 import logging
-from datetime import date
 from typing import Any
 
 from financas.integrations.llm.base import ErroLLM
 
 log = logging.getLogger(__name__)
 
-MODELO_PADRAO = "claude-opus-5-5"
-
-ESQUEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "reconhecido": {"type": "boolean"},
-        "tipo": {"type": "string", "enum": ["debito", "credito", "ganho"]},
-        "valor": {"type": "string"},
-        "parcelas": {"type": ["integer", "null"]},
-        "descricao": {"type": "string"},
-        "data": {"type": ["string", "null"]},
-    },
-    "required": ["reconhecido", "tipo", "valor", "parcelas", "descricao", "data"],
-    "additionalProperties": False,
-}
-
-SISTEMA = """Você converte a transcrição de um áudio em português do Brasil em um \
-lançamento financeiro estruturado para um app de finanças familiares.
-
-Campos:
-- tipo: "debito" (despesa à vista), "credito" (compra parcelada no cartão) ou "ganho" (receita).
-- valor: o valor TOTAL em reais no formato brasileiro, com vírgula decimal (ex.: "1.200,50"). \
-Numa compra parcelada é o total da compra, nunca o valor de uma parcela.
-- parcelas: quantidade de parcelas (1 a 48) se for "credito"; null nos outros tipos.
-- descricao: descrição curta do que foi pago ou recebido, sem o valor e sem a data.
-- data: "AAAA-MM-DD" somente se a pessoa disse a data; caso contrário null.
-
-Não invente nada. Se o tipo, o valor, a descrição ou (no crédito) as parcelas não forem \
-ditos com clareza, ou se a fala deixar dúvida entre valor da parcela e valor total, \
-responda com reconhecido=false e preencha os demais campos com valores vazios \
-("debito", "", null, "", null)."""
+# Extrair lançamentos de uma frase curta não pede um modelo grande; troque em LLM_MODELO.
+MODELO_PADRAO = "claude-haiku-5-5"
 
 
 class LLMAnthropic:
@@ -68,34 +32,41 @@ class LLMAnthropic:
         self._cliente = cliente
         self.modelo = modelo
 
-    async def propor_comando(self, transcricao: str, hoje: date) -> dict[str, Any] | None:
+    async def completar_json(
+        self, sistema: str, usuario: str, esquema: dict[str, Any]
+    ) -> dict[str, Any] | None:
         import anthropic  # noqa: PLC0415
 
         try:
-            resposta = await self._cliente.beta.messages.create(
+            resposta = await self._cliente.messages.create(
                 model=self.modelo,
-                max_tokens=1024,
-                betas=["server-side-fallback-2026-07-01"],
-                fallbacks="default",
+                max_tokens=4096,
                 output_config={
                     "effort": "low",
-                    "format": {"type": "json_schema", "schema": ESQUEMA},
+                    "format": {"type": "json_schema", "schema": esquema},
                 },
-                system=SISTEMA,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"Hoje é {hoje.isoformat()}.\nTranscrição: {transcricao}",
-                    }
-                ],
+                system=sistema,
+                messages=[{"role": "user", "content": usuario}],
             )
         except anthropic.APITimeoutError as e:
             raise ErroLLM("timeout na LLM") from e
-        except (anthropic.APIStatusError, anthropic.APIConnectionError) as e:
+        except anthropic.APIStatusError as e:
+            raise ErroLLM(f"falha na LLM: {type(e).__name__} ({e.status_code})") from e
+        except anthropic.APIConnectionError as e:
             raise ErroLLM(f"falha na LLM: {type(e).__name__}") from e
 
-        if resposta.stop_reason != "end_turn":
-            log.info("llm_sem_proposta", extra={"stop_reason": resposta.stop_reason})
+        uso = getattr(resposta, "usage", None)
+        log.info(
+            "llm_chamada",
+            extra={
+                "provedor": "anthropic",
+                "modelo": self.modelo,
+                "stop_reason": resposta.stop_reason,
+                "consumo_entrada": getattr(uso, "input_tokens", None),
+                "consumo_saida": getattr(uso, "output_tokens", None),
+            },
+        )
+        if resposta.stop_reason != "end_turn":  # recusa, corte por max_tokens etc.
             return None
         texto = next((b.text for b in resposta.content if b.type == "text"), None)
         if texto is None:
@@ -104,6 +75,4 @@ class LLMAnthropic:
             dados = json.loads(texto)
         except json.JSONDecodeError as e:
             raise ErroLLM("resposta da LLM não é JSON") from e
-        if not isinstance(dados, dict) or not dados.get("reconhecido"):
-            return None
-        return {k: dados.get(k) for k in ("tipo", "valor", "parcelas", "descricao", "data")}
+        return dados if isinstance(dados, dict) else None

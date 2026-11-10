@@ -16,36 +16,15 @@ from telegram.ext import Application, ApplicationBuilder
 from financas.bot import handlers
 from financas.bot.processador import Processador
 from financas.clock import RelogioSistema
-from financas.config import ProvedorLLM, Settings, get_settings
+from financas.config import Settings, get_settings
 from financas.db.session import criar_engine, criar_fabrica
-from financas.integrations.llm.base import LLMFalsa, LLMProvider
+from financas.integrations.llm import criar_llm
 from financas.integrations.stt import criar_stt
 from financas.logging import configurar_logs
 
 log = logging.getLogger(__name__)
 
 ATUALIZACOES = [Update.MESSAGE, Update.EDITED_MESSAGE, Update.CALLBACK_QUERY]
-
-
-def criar_llm(cfg: Settings) -> LLMProvider | None:
-    match cfg.llm_provedor:
-        case ProvedorLLM.NENHUM:
-            return None
-        case ProvedorLLM.FALSO:
-            return LLMFalsa()
-        case ProvedorLLM.ANTHROPIC:
-            if cfg.anthropic_api_key is None:
-                raise SystemExit("LLM_PROVEDOR=anthropic exige ANTHROPIC_API_KEY")
-            from financas.integrations.llm.anthropic import LLMAnthropic  # noqa: PLC0415
-
-            return LLMAnthropic(
-                cfg.anthropic_api_key.get_secret_value(),
-                modelo=cfg.llm_modelo,
-                timeout=cfg.llm_timeout_segundos,
-            )
-        case _:
-            log.warning("llm_provedor_nao_implementado", extra={"provedor": cfg.llm_provedor})
-            return None
 
 
 def criar_aplicacao(cfg: Settings) -> Application[Any, Any, Any, Any, Any, Any]:

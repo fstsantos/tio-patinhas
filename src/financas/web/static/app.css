@@ -41,7 +41,9 @@ a { color: var(--primaria); }
 
 .topo { background: var(--topo); color: #fff; }
 .topo-interno { max-width: 1200px; margin: 0 auto; padding: .6rem 1rem; display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; }
-.marca { color: #fff; font-weight: 700; text-decoration: none; font-size: 1.1rem; }
+.marca { color: #fff; font-weight: 700; text-decoration: none; font-size: 1.1rem; display: inline-flex; align-items: center; gap: .5rem; }
+.marca-icone { display: block; flex: none; }
+.marca-login { display: flex; align-items: center; gap: .6rem; }
 .topo nav { display: flex; gap: .25rem; flex-wrap: wrap; flex: 1; }
 .topo nav a { color: #d6def0; text-decoration: none; padding: .35rem .65rem; border-radius: 6px; }
 .topo nav a[aria-current="page"], .topo nav a:hover { background: rgba(255,255,255,.12); color: #fff; }

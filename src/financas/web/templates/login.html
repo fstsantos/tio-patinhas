@@ -2,7 +2,7 @@
 {% block titulo %}Entrar{% endblock %}
 {% block conteudo %}
 <section class="cartao estreito login">
-  <h1>🦆 Tio Patinhas</h1>
+  <h1 class="marca-login"><img class="marca-icone" src="{{ estatico('icone-96.png') }}" alt="" width="44" height="44">Tio Patinhas</h1>
   <p class="sutil">Finanças da família</p>
   {% if erro %}<div class="aviso erro" role="alert">{{ erro }}</div>{% endif %}
   <form method="post" action="/login" class="formulario">

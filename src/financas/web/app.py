@@ -153,7 +153,10 @@ def _criar_templates() -> Jinja2Templates:
         tipo=lambda v: NOMES_TIPO.get(v, v),
         origem=lambda v: NOMES_ORIGEM.get(v, v),
     )
-    estaticos = {n: _estatico(n) for n in ("app.css", "app.js", "tema.js")}
+    estaticos = {
+        n: _estatico(n)
+        for n in ("app.css", "app.js", "tema.js", "icone-32.png", "icone-96.png", "icone-192.png")
+    }
     t.env.globals.update(
         StatusLancamento=StatusLancamento,
         TipoLancamento=TipoLancamento,

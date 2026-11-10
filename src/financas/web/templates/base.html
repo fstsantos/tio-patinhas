@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <title>{% block titulo %}Tio Patinhas{% endblock %} · Tio Patinhas</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ estatico('icone-32.png') }}">
+  <link rel="apple-touch-icon" href="{{ estatico('icone-192.png') }}">
   <link rel="stylesheet" href="{{ estatico('app.css') }}">
   <script src="{{ estatico('tema.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js" defer></script>
@@ -17,7 +19,7 @@
 {% if usuario %}
 <header class="topo">
   <div class="topo-interno">
-    <a class="marca" href="/">🦆 Tio Patinhas</a>
+    <a class="marca" href="/"><img class="marca-icone" src="{{ estatico('icone-96.png') }}" alt="" width="28" height="28">Tio Patinhas</a>
     <nav aria-label="Principal">
       <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Dashboard</a>
       <a href="/lancamentos" {% if request.url.path.startswith('/lancamentos') %}aria-current="page"{% endif %}>Lançamentos</a>

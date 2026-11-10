@@ -69,11 +69,6 @@ def _data_e_descricao(args: list[str], hoje: date, cmd: str) -> tuple[date, str]
         if encontrada is not None:
             data = encontrada
             args = args[:-1]
-    if data > hoje:
-        raise _Erro(
-            f"A data {data:%d/%m/%Y} está no futuro; datas futuras não são permitidas.",
-            "Registre no dia em que acontecer, ou use dd/mm/aaaa para anos anteriores.",
-        )
     try:
         descricao = validar_descricao(" ".join(args))
     except ErroDominio as e:

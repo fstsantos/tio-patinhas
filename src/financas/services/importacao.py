@@ -158,9 +158,7 @@ def _dados(fatura: Fatura, linha: LinhaFatura) -> DadosLancamento:
     )
 
 
-async def planejar(
-    s: AsyncSession, clock: Clock, titular: Membro, fatura: Fatura, regras: Regras
-) -> Plano:
+async def planejar(s: AsyncSession, titular: Membro, fatura: Fatura, regras: Regras) -> Plano:
     """Classifica cada linha da fatura, sem gravar nada."""
     datas = {linha.data for linha in fatura.linhas}
     q = select(Lancamento).where(
@@ -180,7 +178,7 @@ async def planejar(
             itens.append(ItemPlano(linha, Situacao.ERRO, detalhe=detalhe))
             continue
         try:
-            dados = svc.validar_dados(_dados(fatura, linha), clock.hoje())
+            dados = svc.validar_dados(_dados(fatura, linha))
         except ErroDominio as e:
             itens.append(ItemPlano(linha, Situacao.ERRO, detalhe=str(e)))
             continue

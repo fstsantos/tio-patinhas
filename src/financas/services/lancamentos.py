@@ -31,7 +31,6 @@ from financas.db.models import (
 from financas.domain.dinheiro import validar_limites
 from financas.domain.erros import (
     ConflitoConcorrencia,
-    DataInvalida,
     NaoEncontrado,
     OperacaoInvalida,
     ParcelasInvalidas,
@@ -69,14 +68,10 @@ class LancamentoComParcelas:
 # ------------------------------------------------------------------ validação
 
 
-def validar_dados(dados: DadosLancamento, hoje: date) -> DadosLancamento:
+def validar_dados(dados: DadosLancamento) -> DadosLancamento:
+    """Valida valor, descrição e parcelas. A data é livre: passada, de hoje ou futura."""
     valor = validar_limites(dados.valor)
     descricao = validar_descricao(dados.descricao)
-    if dados.data_operacao > hoje:
-        raise DataInvalida(
-            "Datas futuras não são permitidas.",
-            sugestao="Registre o lançamento no dia em que ele acontecer.",
-        )
     qtd = dados.qtd_parcelas
     primeira = dados.primeira_competencia
     if dados.tipo is TipoLancamento.CREDITO:
@@ -212,7 +207,7 @@ async def criar(
         titular = await s.get(Membro, titular_id)
         if titular is None or not titular.ativo:
             raise NaoEncontrado("Membro titular não encontrado ou inativo.")
-    dados = validar_dados(dados, clock.hoje())
+    dados = validar_dados(dados)
     await _validar_categoria(s, dados.categoria_id, dados.tipo)
 
     agora = clock.agora()
@@ -337,7 +332,7 @@ async def editar(
     _conferir_revisao(lanc, revisao_esperada)
     if novos.tipo.value != lanc.tipo:
         raise OperacaoInvalida("O tipo do lançamento não pode ser alterado.")
-    novos = validar_dados(novos, clock.hoje())
+    novos = validar_dados(novos)
     # Categoria mantida não é revalidada: ela pode ter sido desativada depois.
     if novos.categoria_id != lanc.categoria_id:
         await _validar_categoria(s, novos.categoria_id, novos.tipo)

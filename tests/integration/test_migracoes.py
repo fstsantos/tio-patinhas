@@ -157,22 +157,22 @@ async def test_reparcelamento_com_substituicao(fabrica: async_sessionmaker[Async
         await _parcela(s, lanc, 2, "5.00", date(2026, 5, 1), revisao=2)
 
 
-@pytest.mark.parametrize(("tipo", "qtd"), [("DEBITO", None), ("RECEITA", None), ("CREDITO", 1)])
-async def test_data_futura_rejeitada(
+@pytest.mark.parametrize(("tipo", "qtd"), [("DEBITO", None), ("RECEITA", None)])
+async def test_data_futura_aceita(
     fabrica: async_sessionmaker[AsyncSession], tipo: str, qtd: int | None
 ) -> None:
+    # A migração 0002 removeu o CHECK ck_lancamentos_data_nao_futura.
     async with fabrica() as s, s.begin():
         m = await _membro(s)
-    with pytest.raises(IntegrityError, match="data_nao_futura"):
-        async with fabrica() as s, s.begin():
-            await s.execute(
-                text(
-                    "INSERT INTO lancamentos (tipo, valor_total, descricao, descricao_normalizada,"
-                    " membro_id, criado_por, data_operacao, qtd_parcelas, status, origem)"
-                    " VALUES (:t, 10, 'x', 'x', :m, :m, current_date + 2, :q, 'ATIVO', 'WEB')"
-                ),
-                {"t": tipo, "m": m, "q": qtd},
-            )
+    async with fabrica() as s, s.begin():
+        await s.execute(
+            text(
+                "INSERT INTO lancamentos (tipo, valor_total, descricao, descricao_normalizada,"
+                " membro_id, criado_por, data_operacao, qtd_parcelas, status, origem)"
+                " VALUES (:t, 10, 'x', 'x', :m, :m, current_date + 2, :q, 'ATIVO', 'WEB')"
+            ),
+            {"t": tipo, "m": m, "q": qtd},
+        )
 
 
 @pytest.mark.parametrize(

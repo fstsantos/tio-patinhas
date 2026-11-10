@@ -63,7 +63,7 @@ def arquivo(tmp_path: Path) -> Path:
 
 async def _importar(s: AsyncSession, clock, arquivo: Path, regras: Regras = REGRAS):  # type: ignore[no-untyped-def]
     titular = await imp.membro_por_nome(s, "carlos")
-    plano = await imp.planejar(s, clock, titular, ler_fatura(arquivo), regras)
+    plano = await imp.planejar(s, titular, ler_fatura(arquivo), regras)
     return plano, await imp.executar(s, clock, plano)
 
 
@@ -167,7 +167,7 @@ async def test_reimportar_nao_duplica(
         assert plano.itens[2].situacao is Situacao.NOVA
     async with fabrica() as s:
         bia = await imp.membro_por_nome(s, "Bia")
-        plano = await imp.planejar(s, clock, bia, ler_fatura(arquivo), REGRAS)
+        plano = await imp.planejar(s, bia, ler_fatura(arquivo), REGRAS)
         assert not plano.com(Situacao.EXISTENTE)
         assert await verificar_integridade(s) == []
 
@@ -175,10 +175,10 @@ async def test_reimportar_nao_duplica(
 async def test_erros_bloqueiam_a_importacao(
     fabrica: async_sessionmaker[AsyncSession], clock, arquivo: Path, tmp_path: Path
 ) -> None:  # type: ignore[no-untyped-def]
-    futura = f.planilha_fatura(
+    ruim = f.planilha_fatura(
         tmp_path / "erros.xlsx",
         [
-            (date(2026, 11, 11), "Lojasao Paulobra", None, 10),  # data futura
+            (date(2026, 11, 1), "Lojasao Paulobra", "Parcela 1 de 49", 10),  # parcelas demais
             (date(2026, 3, 1), "Antigasao Paulobra", "Parcela 2 de 3", 10),  # 1ª parcela em out
             (date(2026, 11, 1), "Boasao Paulobra", None, 10),
         ],
@@ -186,14 +186,16 @@ async def test_erros_bloqueiam_a_importacao(
     async with fabrica() as s, s.begin():
         carlos = await f.membro(s, "Carlos", admin=True)
         # Sem a regra de ignorar, o estorno é um erro e nada é gravado.
-        plano = await imp.planejar(s, clock, carlos, ler_fatura(arquivo), Regras())
+        plano = await imp.planejar(s, carlos, ler_fatura(arquivo), Regras())
         (erro,) = plano.com(Situacao.ERRO)
         assert erro.linha.valor == D("-199.90") and "ignorar" in erro.detalhe
         with pytest.raises(OperacaoInvalida, match="linhas com erro"):
             await imp.executar(s, clock, plano)
-        plano = await imp.planejar(s, clock, carlos, ler_fatura(futura), Regras())
+        plano = await imp.planejar(s, carlos, ler_fatura(ruim), Regras())
         assert [i.situacao for i in plano.itens] == [Situacao.ERRO, Situacao.ERRO, Situacao.NOVA]
-        assert "futuras" in plano.itens[0].detalhe and "1ª parcela" in plano.itens[1].detalhe
+        assert (
+            "parcelas inválida" in plano.itens[0].detalhe and "1ª parcela" in plano.itens[1].detalhe
+        )
         assert await s.scalar(select(func.count()).select_from(Lancamento)) == 0
 
 

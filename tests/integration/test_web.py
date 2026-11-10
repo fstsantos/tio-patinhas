@@ -325,7 +325,8 @@ async def test_formulario_invalido(cliente: httpx.AsyncClient, pessoas: dict[str
             "data": "2026-03-21",
         },
     )
-    assert r.status_code == 422 and "futuras" in r.text
+    # Data futura (o relógio do teste está em 20/03/2026) é aceita.
+    assert r.status_code == 303
 
 
 async def test_listagem_filtros_e_htmx(cliente: httpx.AsyncClient, pessoas: dict[str, int]) -> None:

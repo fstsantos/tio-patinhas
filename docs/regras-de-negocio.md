@@ -29,8 +29,12 @@ entre parênteses.
 - A parcela *k* (1..n) de uma compra feita no mês M pertence ao mês M + *k*
   (`competencia` = dia 1 desse mês). Compra em dezembro → 1ª parcela em janeiro.
 - Não há dia de vencimento nem fechamento de fatura.
-- **Limitação conhecida:** compras feitas após o fechamento real do cartão (fim do mês)
-  costumam cair na fatura de M + 2; a v1 aceita essa diferença.
+- **Mês da 1ª parcela (opcional):** a compra pode informar `primeira_competencia`, de M
+  até M + 2 (ex.: compra no dia 3, antes do fechamento, que já está na fatura de M; ou
+  compra depois do fechamento que cai em M + 2). Então a parcela *k* pertence a
+  `primeira_competencia` + (*k* − 1). Vazio = regra padrão. Validado no domínio e por
+  CHECK no banco (`ck_lancamentos_primeira_competencia`). Informado pela web; o bot
+  sempre usa a regra padrão.
 - Centavos: base = total ÷ n truncada; o resto em centavos vai, R$ 0,01 cada, para as
   primeiras parcelas. Ex.: R$ 100,00 / 3 = 33,34 + 33,33 + 33,33. Soma sempre exata.
 - Cada parcela precisa de ao menos R$ 0,01 (total em centavos ≥ n).
@@ -77,7 +81,7 @@ Reparcelar marca as vigentes como `SUBSTITUIDA` e gera novas com a nova revisão
   mesma transação.
 - **Editar** (somente lançamentos ativos; o tipo não muda):
   - descrição/categoria → altera só o lançamento;
-  - valor, data ou parcelas de uma compra → parcelas vigentes viram `SUBSTITUIDA` e
+  - valor, data, parcelas ou mês da 1ª parcela de uma compra → parcelas vigentes viram `SUBSTITUIDA` e
     uma nova revisão de parcelas é gerada.
   - A edição informa a revisão lida (`revisao_esperada`); se outra pessoa alterou
     antes, a operação falha com conflito (controle otimista).

@@ -6,8 +6,12 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from financas.domain.calendario import Mes
-from financas.domain.erros import ParcelasInvalidas, ValorInvalido
-from financas.domain.parcelamento import distribuir, gerar_parcelas
+from financas.domain.erros import DataInvalida, ParcelasInvalidas, ValorInvalido
+from financas.domain.parcelamento import (
+    distribuir,
+    gerar_parcelas,
+    validar_primeira_competencia,
+)
 
 centavos = st.integers(min_value=1, max_value=100_000_000)
 qtds = st.integers(min_value=1, max_value=48)
@@ -85,3 +89,32 @@ def test_compra_retroativa() -> None:
         date(2026, 4, 1),
         date(2026, 5, 1),
     ]
+
+
+def test_primeira_competencia_no_mes_da_compra() -> None:
+    """Fatura real: compra em 04/05 antes do fechamento, 1ª parcela já em maio."""
+    parcelas = gerar_parcelas(Decimal("3720.96"), 18, date(2026, 5, 4), date(2026, 5, 1))
+    assert parcelas[0].competencia == date(2026, 5, 1)
+    assert parcelas[6].competencia == date(2026, 11, 1)  # parcela 7 de 18 em nov
+    assert parcelas[-1].competencia == date(2027, 10, 1)
+    assert [p.valor for p in parcelas] == [Decimal("206.72")] * 18
+
+
+def test_primeira_competencia_normalizada_para_dia_1() -> None:
+    parcelas = gerar_parcelas(Decimal("10.00"), 1, date(2026, 3, 30), date(2026, 5, 17))
+    assert parcelas[0].competencia == date(2026, 5, 1)
+
+
+def test_primeira_competencia_ausente_mantem_regra_padrao() -> None:
+    assert gerar_parcelas(Decimal("10.00"), 1, date(2026, 3, 30))[0].competencia == date(2026, 4, 1)
+
+
+@pytest.mark.parametrize("primeira", [date(2026, 2, 1), date(2026, 6, 1), date(2025, 3, 1)])
+def test_primeira_competencia_fora_da_faixa(primeira: date) -> None:
+    with pytest.raises(DataInvalida, match="1ª parcela"):
+        validar_primeira_competencia(date(2026, 3, 30), primeira)
+
+
+@pytest.mark.parametrize("primeira", [date(2026, 3, 1), date(2026, 4, 1), date(2026, 5, 31)])
+def test_primeira_competencia_dentro_da_faixa(primeira: date) -> None:
+    assert validar_primeira_competencia(date(2026, 3, 30), primeira) == primeira.replace(day=1)

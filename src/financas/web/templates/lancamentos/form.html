@@ -24,8 +24,12 @@
     </label>
     <label data-parcelas {% if v.tipo != 'CREDITO' %}hidden{% endif %}>Parcelas (1 a 48)
       <input name="parcelas" type="number" min="1" max="48" value="{{ v.parcelas }}">
-      <small class="sutil">A 1ª parcela pertence ao mês seguinte ao da compra.</small>
       {% if form.erros.parcelas %}<span class="erro-campo">{{ form.erros.parcelas }}</span>{% endif %}
+    </label>
+    <label data-parcelas {% if v.tipo != 'CREDITO' %}hidden{% endif %}>Mês da 1ª parcela (opcional)
+      <input name="primeira_competencia" type="month" value="{{ v.primeira_competencia }}" placeholder="aaaa-mm" aria-describedby="ajuda-primeira" aria-invalid="{{ 'true' if form.erros.primeira_competencia else 'false' }}">
+      <small id="ajuda-primeira" class="sutil">Em branco: mês seguinte ao da compra. Use quando a fatura do cartão disser outro mês (do mês da compra até dois meses depois).</small>
+      {% if form.erros.primeira_competencia %}<span class="erro-campo">{{ form.erros.primeira_competencia }}</span>{% endif %}
     </label>
     <label>Descrição
       <input name="descricao" maxlength="120" value="{{ v.descricao }}" required>
@@ -47,7 +51,7 @@
     {% endif %}
     {% if lancamento %}
     <label>Motivo da alteração (opcional)<input name="motivo" maxlength="300" value="{{ v.motivo }}"></label>
-    {% if lancamento.tipo == 'CREDITO' %}<p class="aviso info">Alterar valor, data ou parcelas substitui as parcelas atuais por uma nova revisão (o histórico é preservado).</p>{% endif %}
+    {% if lancamento.tipo == 'CREDITO' %}<p class="aviso info">Alterar valor, data, parcelas ou mês da 1ª parcela substitui as parcelas atuais por uma nova revisão (o histórico é preservado).</p>{% endif %}
     {% endif %}
     <div class="acoes">
       <button class="botao primario" type="submit">Salvar</button>

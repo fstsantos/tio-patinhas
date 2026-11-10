@@ -340,3 +340,100 @@ async def test_ultimos_e_desfazer(fabrica: async_sessionmaker[AsyncSession], clo
         clock.avancar(minutes=10, seconds=1)
         assert await svc.ultimo_desfazivel(s, clock, ana) is None
         assert len((await s.execute(select(Lancamento))).scalars().all()) == 13
+
+
+async def test_credito_com_primeira_competencia(
+    fabrica: async_sessionmaker[AsyncSession], clock
+) -> None:  # type: ignore[no-untyped-def]
+    """Compra em 03/03 que a fatura já cobra em março (antes do fechamento)."""
+    dados = DadosLancamento(
+        CREDITO, D("300.00"), "lojinha", date(2026, 3, 3), 3, primeira_competencia=date(2026, 3, 1)
+    )
+    async with fabrica() as s, s.begin():
+        ana = await f.membro(s)
+        r = await svc.criar(s, clock, ana, dados, origem=Origem.CLI)
+    assert r.lancamento.primeira_competencia == date(2026, 3, 1)
+    assert [p.competencia for p in r.parcelas] == [
+        date(2026, 3, 1),
+        date(2026, 4, 1),
+        date(2026, 5, 1),
+    ]
+    async with fabrica() as s:
+        assert await verificar_integridade(s) == []
+        reg = (
+            await s.execute(select(Auditoria).where(Auditoria.entidade_id == r.lancamento.id))
+        ).scalar_one()
+        assert reg.dados_depois is not None
+        assert reg.dados_depois["primeira_competencia"] == "2026-03-01"
+
+
+@pytest.mark.parametrize(
+    ("tipo", "qtd", "primeira", "erro"),
+    [
+        (CREDITO, 2, date(2026, 2, 1), DataInvalida),  # antes do mês da compra
+        (CREDITO, 2, date(2026, 6, 1), DataInvalida),  # depois de M + 2
+        (DEBITO, None, date(2026, 3, 1), ParcelasInvalidas),  # só crédito
+    ],
+)
+async def test_primeira_competencia_invalida(
+    fabrica: async_sessionmaker[AsyncSession],
+    clock,  # type: ignore[no-untyped-def]
+    tipo: TipoLancamento,
+    qtd: int | None,
+    primeira: date,
+    erro: type[Exception],
+) -> None:
+    dados = DadosLancamento(tipo, D("100.00"), "x", date(2026, 3, 10), qtd, None, primeira)
+    async with fabrica() as s, s.begin():
+        ana = await f.membro(s)
+        with pytest.raises(erro):
+            await svc.criar(s, clock, ana, dados, origem=Origem.WEB)
+
+
+async def test_editar_primeira_competencia_reparcela(
+    fabrica: async_sessionmaker[AsyncSession], clock
+) -> None:  # type: ignore[no-untyped-def]
+    async with fabrica() as s, s.begin():
+        ana = await f.membro(s)
+        r = await f.lancar(
+            s, clock, ana, CREDITO, "100.00", "tv", data=date(2026, 3, 2), parcelas=2
+        )
+        assert r.parcelas[0].competencia == date(2026, 4, 1)
+        base = DadosLancamento(CREDITO, D("100.00"), "tv", date(2026, 3, 2), 2)
+        # informar o mês da 1ª parcela reparcela
+        e = await svc.editar(
+            s,
+            clock,
+            ana,
+            r.lancamento.id,
+            replace(base, primeira_competencia=date(2026, 3, 1)),
+            origem=Origem.WEB,
+            revisao_esperada=r.lancamento.revisao,
+        )
+        assert [p.competencia for p in e.parcelas] == [date(2026, 3, 1), date(2026, 4, 1)]
+        rev_parcelas = e.lancamento.revisao
+        # mudar só a descrição mantém o mês informado e não reparcela
+        e2 = await svc.editar(
+            s,
+            clock,
+            ana,
+            r.lancamento.id,
+            replace(base, descricao="TV", primeira_competencia=date(2026, 3, 1)),
+            origem=Origem.WEB,
+            revisao_esperada=rev_parcelas,
+        )
+        assert {p.revisao_lancamento for p in e2.parcelas} == {rev_parcelas}
+        # voltar à regra padrão (campo vazio) reparcela de novo
+        e3 = await svc.editar(
+            s,
+            clock,
+            ana,
+            r.lancamento.id,
+            replace(base, descricao="TV"),
+            origem=Origem.WEB,
+            revisao_esperada=rev_parcelas + 1,
+        )
+        assert e3.lancamento.primeira_competencia is None
+        assert [p.competencia for p in e3.parcelas] == [date(2026, 4, 1), date(2026, 5, 1)]
+    async with fabrica() as s:
+        assert await verificar_integridade(s) == []

@@ -36,7 +36,11 @@ from financas.domain.erros import (
     OperacaoInvalida,
     ParcelasInvalidas,
 )
-from financas.domain.parcelamento import gerar_parcelas, validar_qtd_parcelas
+from financas.domain.parcelamento import (
+    gerar_parcelas,
+    validar_primeira_competencia,
+    validar_qtd_parcelas,
+)
 from financas.domain.texto import normalizar, validar_descricao
 from financas.services import auditoria, autorizacao
 
@@ -52,6 +56,8 @@ class DadosLancamento:
     data_operacao: date
     qtd_parcelas: int | None = None
     categoria_id: int | None = None
+    # Mês da 1ª parcela (só crédito); None = mês seguinte ao da compra.
+    primeira_competencia: date | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,13 +78,18 @@ def validar_dados(dados: DadosLancamento, hoje: date) -> DadosLancamento:
             sugestao="Registre o lançamento no dia em que ele acontecer.",
         )
     qtd = dados.qtd_parcelas
+    primeira = dados.primeira_competencia
     if dados.tipo is TipoLancamento.CREDITO:
         if qtd is None:
             raise ParcelasInvalidas("Informe a quantidade de parcelas.")
         validar_qtd_parcelas(qtd)
+        if primeira is not None:
+            primeira = validar_primeira_competencia(dados.data_operacao, primeira)
     elif qtd is not None:
         raise ParcelasInvalidas("Somente compras no crédito têm parcelas.")
-    return replace(dados, valor=valor, descricao=descricao)
+    elif primeira is not None:
+        raise ParcelasInvalidas("Somente compras no crédito têm mês da 1ª parcela.")
+    return replace(dados, valor=valor, descricao=descricao, primeira_competencia=primeira)
 
 
 async def _validar_categoria(
@@ -180,7 +191,9 @@ def _novas_parcelas(lanc: Lancamento, agora_: datetime) -> list[Parcela]:
             created_at=agora_,
             updated_at=agora_,
         )
-        for p in gerar_parcelas(lanc.valor_total, lanc.qtd_parcelas, lanc.data_operacao)
+        for p in gerar_parcelas(
+            lanc.valor_total, lanc.qtd_parcelas, lanc.data_operacao, lanc.primeira_competencia
+        )
     ]
 
 
@@ -213,6 +226,7 @@ async def criar(
         criado_por=ator.id,
         data_operacao=dados.data_operacao,
         qtd_parcelas=dados.qtd_parcelas,
+        primeira_competencia=dados.primeira_competencia,
         status=StatusLancamento.ATIVO.value,
         origem=origem.value,
         created_at=agora,
@@ -312,7 +326,8 @@ async def editar(
 ) -> LancamentoComParcelas:
     """Edita um lançamento ativo.
 
-    Descrição/categoria: altera só o lançamento. Valor, data ou parcelas de uma compra:
+    Descrição/categoria: altera só o lançamento. Valor, data, parcelas ou mês da 1ª
+    parcela de uma compra:
     marca as parcelas vigentes como SUBSTITUIDA e gera nova revisão, na mesma transação.
     """
     lanc = await obter(s, lancamento_id, travar=True)
@@ -332,6 +347,7 @@ async def editar(
         novos.valor != lanc.valor_total
         or novos.data_operacao != lanc.data_operacao
         or novos.qtd_parcelas != lanc.qtd_parcelas
+        or novos.primeira_competencia != lanc.primeira_competencia
     )
     mudou = reparcelar or (
         novos.valor != lanc.valor_total
@@ -346,6 +362,7 @@ async def editar(
     lanc.valor_total = novos.valor
     lanc.data_operacao = novos.data_operacao
     lanc.qtd_parcelas = novos.qtd_parcelas
+    lanc.primeira_competencia = novos.primeira_competencia
     lanc.descricao = novos.descricao
     lanc.descricao_normalizada = normalizar(novos.descricao)
     lanc.categoria_id = novos.categoria_id

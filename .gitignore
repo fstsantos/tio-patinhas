@@ -16,3 +16,7 @@ backups/
 # Documentos de trabalho locais (não versionados)
 spec.md
 PROGRESSO.md
+
+# Faturas de cartão (têm agência e conta)
+faturas/
+*.xlsx

@@ -647,7 +647,9 @@ async def test_alternador_de_tema(cliente: httpx.AsyncClient, pessoas: dict[str,
     r = await cliente.get("/")
     assert r.text.count("data-alternar-tema") == 1 and 'class="tema-solto"' not in r.text
     cabeca = r.text.split("</head>")[0]
-    assert '<script src="/static/tema.js"></script>' in cabeca  # sem defer: evita piscar
+    # Sem defer (evita piscar) e com versão na URL (evita CSS/JS antigo do cache).
+    assert re.search(r'<script src="/static/tema\.js\?v=[0-9a-f]{10}"></script>', cabeca)
+    assert re.search(r'href="/static/app\.css\?v=[0-9a-f]{10}"', cabeca)
     js = await cliente.get("/static/tema.js")
     assert js.status_code == 200 and "localStorage" in js.text
     css = (Path(web_app.__file__).parent / "static/app.css").read_text(encoding="utf-8")

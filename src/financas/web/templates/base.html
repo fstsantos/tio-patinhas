@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <title>{% block titulo %}Tio Patinhas{% endblock %} · Tio Patinhas</title>
-  <link rel="stylesheet" href="/static/app.css">
-  <script src="/static/tema.js"></script>
+  <link rel="stylesheet" href="{{ estatico('app.css') }}">
+  <script src="{{ estatico('tema.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js" defer></script>
   {% block cabecalho %}{% endblock %}
-  <script src="/static/app.js" defer></script>
+  <script src="{{ estatico('app.js') }}" defer></script>
 </head>
 <body>
 <a class="pular" href="#conteudo">Pular para o conteúdo</a>

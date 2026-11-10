@@ -6,6 +6,7 @@ toda regra de negócio fica em ``financas.services``.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -134,6 +135,13 @@ def _mes(d: date | Mes) -> str:
     return (d if isinstance(d, Mes) else Mes.de_data(d)).abreviado
 
 
+def _estatico(nome: str) -> str:
+    """URL de um arquivo de /static com o hash do conteúdo, para o navegador não usar
+    uma cópia antiga do cache depois de uma atualização."""
+    versao = hashlib.sha256((RAIZ / "static" / nome).read_bytes()).hexdigest()[:10]
+    return f"/static/{nome}?v={versao}"
+
+
 def _criar_templates() -> Jinja2Templates:
     t = Jinja2Templates(directory=str(RAIZ / "templates"))
     t.env.autoescape = True
@@ -145,7 +153,12 @@ def _criar_templates() -> Jinja2Templates:
         tipo=lambda v: NOMES_TIPO.get(v, v),
         origem=lambda v: NOMES_ORIGEM.get(v, v),
     )
-    t.env.globals.update(StatusLancamento=StatusLancamento, TipoLancamento=TipoLancamento)
+    estaticos = {n: _estatico(n) for n in ("app.css", "app.js", "tema.js")}
+    t.env.globals.update(
+        StatusLancamento=StatusLancamento,
+        TipoLancamento=TipoLancamento,
+        estatico=estaticos.__getitem__,
+    )
     return t
 
 

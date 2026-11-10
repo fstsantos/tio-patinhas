@@ -258,6 +258,7 @@ def upgrade() -> None:
         sa.Column("criado_por", sa.Integer(), nullable=False),
         sa.Column("data_operacao", sa.Date(), nullable=False),
         sa.Column("qtd_parcelas", sa.SmallInteger(), nullable=True),
+        sa.Column("primeira_competencia", sa.Date(), nullable=True),
         sa.Column("status", sa.String(length=10), nullable=False),
         sa.Column("cancelado_em", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelado_por", sa.Integer(), nullable=True),
@@ -290,8 +291,19 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("status IN ('ATIVO', 'CANCELADO')", name=op.f("ck_lancamentos_status")),
         sa.CheckConstraint(
-            "data_operacao <= (created_at AT TIME ZONE 'America/Sao_Paulo')::date",
+            # Compara com updated_at: na criação é igual a created_at; numa edição, a
+            # data não pode passar do dia da edição (permite datas retroativas).
+            "data_operacao <= (updated_at AT TIME ZONE 'America/Sao_Paulo')::date",
             name=op.f("ck_lancamentos_data_nao_futura"),
+        ),
+        sa.CheckConstraint(
+            # Mês da 1ª parcela (opcional, só crédito): dia 1, de M até M + 2.
+            "primeira_competencia IS NULL OR ("
+            "tipo = 'CREDITO' AND EXTRACT(DAY FROM primeira_competencia) = 1"
+            " AND primeira_competencia >= date_trunc('month', data_operacao)::date"
+            " AND primeira_competencia <= (date_trunc('month', data_operacao)"
+            " + interval '2 months')::date)",
+            name=op.f("ck_lancamentos_primeira_competencia"),
         ),
         sa.CheckConstraint(
             "tipo IN ('RECEITA', 'DEBITO', 'CREDITO')", name=op.f("ck_lancamentos_tipo")

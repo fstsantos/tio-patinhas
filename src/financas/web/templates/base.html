@@ -19,7 +19,7 @@
 {% if usuario %}
 <header class="topo">
   <div class="topo-interno">
-    <a class="marca" href="/"><img class="marca-icone" src="{{ estatico('icone-96.png') }}" alt="" width="28" height="28">Tio Patinhas</a>
+    <a class="marca" href="/"><img class="marca-icone" src="{{ estatico('icone-96.png') }}" alt="" width="40" height="40">Tio Patinhas</a>
     <nav aria-label="Principal">
       <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Dashboard</a>
       <a href="/lancamentos" {% if request.url.path.startswith('/lancamentos') %}aria-current="page"{% endif %}>Lançamentos</a>

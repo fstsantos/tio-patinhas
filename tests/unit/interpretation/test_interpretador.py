@@ -16,22 +16,22 @@ D = Decimal
     [
         (
             "Registra um débito de dez reais e cinquenta no mercado.",
-            c.Debito(D("10.50"), "mercado", HOJE),
+            c.Debito(D("10.50"), "Mercado", HOJE),
         ),
-        ("débito 45 reais farmácia ontem", c.Debito(D("45.00"), "farmácia", date(2026, 3, 19))),
-        ("gastei cinquenta reais na padaria", c.Debito(D("50.00"), "padaria", HOJE)),
+        ("débito 45 reais farmácia ontem", c.Debito(D("45.00"), "Farmácia", date(2026, 3, 19))),
+        ("gastei cinquenta reais na padaria", c.Debito(D("50.00"), "Padaria", HOJE)),
         (
             "crédito de mil e duzentos em dez vezes na loja de móveis",
-            c.Credito(D("1200.00"), 10, "loja de móveis", HOJE),
+            c.Credito(D("1200.00"), 10, "Loja de móveis", HOJE),
         ),
         (
             "comprei uma geladeira de três mil reais em dez vezes",
-            c.Credito(D("3000.00"), 10, "comprei uma geladeira", HOJE),
+            c.Credito(D("3000.00"), 10, "Comprei uma geladeira", HOJE),
         ),
-        ("recebi três mil e quinhentos de salário", c.Ganho(D("3500.00"), "salário", HOJE)),
-        ("ganho 3500 salário", c.Ganho(D("3500.00"), "salário", HOJE)),
+        ("recebi três mil e quinhentos de salário", c.Ganho(D("3500.00"), "Salário", HOJE)),
+        ("ganho 3500 salário", c.Ganho(D("3500.00"), "Salário", HOJE)),
         ("resumo mês", c.ResumoMes()),
-        ("débito de dez e vinte no mercado", c.Debito(D("10.20"), "mercado", HOJE)),
+        ("débito de dez e vinte no mercado", c.Debito(D("10.20"), "Mercado", HOJE)),
     ],
 )
 async def test_interpretacoes(falado: str, esperado: c.Comando) -> None:
@@ -76,7 +76,7 @@ def _item(**campos: object) -> dict[str, object]:
 async def test_llm_usada_quando_heuristica_falha() -> None:
     llm = LLMFalsa(_um(valor="32,90", descricao="uber"))
     r = await interpretar_voz("aquela corrida custou trinta e dois e noventa", HOJE, llm=llm)
-    assert r.comando == c.Debito(D("32.90"), "uber", HOJE)
+    assert r.comando == c.Debito(D("32.90"), "Uber", HOJE)
     assert r.via_llm and r.lote == ()
     assert "Hoje é 2026-03-20 (sexta)" in llm.chamadas[0]
 
@@ -84,7 +84,7 @@ async def test_llm_usada_quando_heuristica_falha() -> None:
 async def test_local_primeiro_llm_nao_e_chamada() -> None:
     llm = LLMFalsa(_um(valor="999,00"))
     r = await interpretar_voz("gastei cinquenta reais na padaria", HOJE, llm=llm)
-    assert r.comando == c.Debito(D("50.00"), "padaria", HOJE) and not r.via_llm
+    assert r.comando == c.Debito(D("50.00"), "Padaria", HOJE) and not r.via_llm
     assert llm.chamadas == []
 
 
@@ -104,9 +104,9 @@ async def test_varios_lancamentos_no_mesmo_audio() -> None:
     r = await interpretar_voz(falado, HOJE, llm=LLMFalsa(resposta))
     assert r.comando is None and r.pergunta is None and r.via_llm
     assert r.lote == (
-        c.Debito(D("20.00"), "cerveja", HOJE),
-        c.Debito(D("15.00"), "petisco", HOJE),
-        c.Credito(D("300.00"), 3, "tênis", date(2026, 3, 25)),
+        c.Debito(D("20.00"), "Cerveja", HOJE),
+        c.Debito(D("15.00"), "Petisco", HOJE),
+        c.Credito(D("300.00"), 3, "Tênis", date(2026, 3, 25)),
     )
     # Sem LLM, o mesmo áudio continua virando pergunta.
     assert "mais de um valor" in ((await interpretar_voz(falado, HOJE)).pergunta or "")
@@ -117,14 +117,14 @@ async def test_data_por_extenso_e_centavos_via_llm() -> None:
     r = await interpretar_voz(
         "lançar receita no dia 15 de novembro no valor de R$ 4.321 e 50 centavos", HOJE, llm=llm
     )
-    assert r.comando == c.Ganho(D("4321.50"), "salário", date(2026, 11, 15))
+    assert r.comando == c.Ganho(D("4321.50"), "Salário", date(2026, 11, 15))
 
 
 async def test_local_suspeito_pede_segunda_opiniao() -> None:
     # O parser entende um débito só, com o segundo lançamento engolido na descrição.
     falado = "débito 20 cerveja débito 15 petisco"
     local = await interpretar_voz(falado, HOJE)
-    assert local.comando == c.Debito(D("20.00"), "cerveja débito 15 petisco", HOJE)
+    assert local.comando == c.Debito(D("20.00"), "Cerveja débito 15 petisco", HOJE)
     dois = {
         "lancamentos": [
             _item(valor="20", descricao="cerveja"),
@@ -133,7 +133,7 @@ async def test_local_suspeito_pede_segunda_opiniao() -> None:
         "duvida": None,
     }
     r = await interpretar_voz(falado, HOJE, llm=LLMFalsa(dois))
-    assert [x.descricao for x in r.lote] == ["cerveja", "petisco"]
+    assert [x.descricao for x in r.lote] == ["Cerveja", "Petisco"]
     # LLM fora do ar, sem proposta ou com proposta inválida: vale o resultado local.
     for llm in (
         LLMFalsa(erro=ErroLLM("fora do ar")),

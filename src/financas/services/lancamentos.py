@@ -9,8 +9,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.exc import StaleDataError
@@ -445,6 +446,10 @@ class FiltroLancamentos:
     valor_max: Decimal | None = None
 
 
+# Campos pelos quais a listagem pode ser ordenada (padrão: data, mais recente primeiro).
+CAMPOS_ORDENACAO = ("codigo", "data", "tipo", "titular", "origem", "valor")
+
+
 @dataclass(frozen=True, slots=True)
 class ItemListagem:
     lancamento: Lancamento
@@ -472,7 +477,10 @@ async def listar(
     *,
     pagina: int = 1,
     por_pagina: int = 50,
+    ordem: str = "data",
+    decrescente: bool = True,
 ) -> PaginaLancamentos:
+    """``ordem`` é um de ``CAMPOS_ORDENACAO``; valor desconhecido cai no padrão (data)."""
     autorizacao.exigir_ativo(ator)
     if not autorizacao.pode_ver_cancelados_e_auditoria(ator):
         filtro = replace(filtro, status=StatusLancamento.ATIVO)
@@ -500,13 +508,22 @@ async def listar(
 
     total = int(await s.scalar(select(func.count()).select_from(Lancamento).where(*condicoes)) or 0)
     pagina = max(1, pagina)
+    coluna: Any = {
+        "codigo": Lancamento.id,
+        "tipo": Lancamento.tipo,
+        "titular": func.lower(titular.nome),
+        "origem": Lancamento.origem,
+        "valor": Lancamento.valor_total,
+    }.get(ordem, Lancamento.data_operacao)
+    sentido = desc if decrescente else asc
     q = (
         select(Lancamento, titular.nome, autor.nome, Categoria.nome)
         .join(titular, titular.id == Lancamento.membro_id)
         .join(autor, autor.id == Lancamento.criado_por)
         .outerjoin(Categoria, Categoria.id == Lancamento.categoria_id)
         .where(*condicoes)
-        .order_by(Lancamento.data_operacao.desc(), Lancamento.id.desc())
+        # Desempate estável: entre iguais, o mais recente primeiro.
+        .order_by(sentido(coluna), Lancamento.data_operacao.desc(), Lancamento.id.desc())
         .limit(por_pagina)
         .offset((pagina - 1) * por_pagina)
     )

@@ -5,7 +5,7 @@
   <h1>Lançamentos</h1>
   <a class="botao primario" href="/lancamentos/novo">+ Novo lançamento</a>
 </div>
-<form class="filtros cartao" method="get" action="/lancamentos"
+<form id="filtros" class="filtros cartao" method="get" action="/lancamentos"
       hx-get="/lancamentos" hx-target="#tabela" hx-trigger="change, submit, keyup changed delay:400ms from:input[type=search]" hx-push-url="true">
   <label>Busca <input type="search" name="texto" value="{{ filtro.texto }}" placeholder="descrição"></label>
   <label>Tipo

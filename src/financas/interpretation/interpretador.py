@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -231,12 +231,33 @@ def _local(normalizado: str, hoje: date) -> tuple[c.Comando | None, str | None]:
     return None, pergunta
 
 
+def _inicial_maiuscula(cmd: c.Lancamento) -> c.Lancamento:
+    d = cmd.descricao
+    return replace(cmd, descricao=d[:1].upper() + d[1:])
+
+
 async def interpretar_voz(
     transcricao: str,
     hoje: date,
     *,
     llm: LLMProvider | None = None,
     timeout_llm: float = 15.0,
+) -> Interpretacao:
+    """Interpreta a transcrição. Em lançamentos, a descrição sai com inicial maiúscula."""
+    r = await _interpretar_voz(transcricao, hoje, llm=llm, timeout_llm=timeout_llm)
+    if isinstance(r.comando, c.Debito | c.Credito | c.Ganho):
+        r = replace(r, comando=_inicial_maiuscula(r.comando))
+    if r.lote:
+        r = replace(r, lote=tuple(_inicial_maiuscula(x) for x in r.lote))
+    return r
+
+
+async def _interpretar_voz(
+    transcricao: str,
+    hoje: date,
+    *,
+    llm: LLMProvider | None,
+    timeout_llm: float,
 ) -> Interpretacao:
     normalizado = normalizar_numeros(transcricao)
     if not normalizado.strip():

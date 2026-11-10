@@ -29,6 +29,17 @@ def alembic_config(url: str) -> Config:
     return cfg
 
 
+@pytest.fixture(autouse=True)
+def _sem_provedores_reais(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Os testes nunca usam a LLM do ``.env`` local: nada de chamada real nem de custo.
+
+    Variável de ambiente vence o ``.env``; quem precisa de LLM injeta uma falsa.
+    """
+    monkeypatch.setenv("LLM_PROVEDOR", "nenhum")
+    for chave in ("LLM_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.setenv(chave, "")
+
+
 @pytest.fixture(scope="session")
 def database_url() -> Iterator[str]:
     url = os.environ.get("TEST_DATABASE_URL")

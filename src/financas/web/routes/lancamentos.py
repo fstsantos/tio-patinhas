@@ -91,6 +91,18 @@ def _filtro(request: Request, usuario: Usuario) -> tuple[svc.FiltroLancamentos, 
     return filtro, valores
 
 
+# Primeiro clique numa coluna: números e datas do maior para o menor; textos de A a Z.
+_DIRECAO_PADRAO = {
+    "codigo": "desc",
+    "data": "desc",
+    "valor": "desc",
+    "tipo": "asc",
+    "titular": "asc",
+    "origem": "asc",
+}
+_INVERSA = {"asc": "desc", "desc": "asc"}
+
+
 async def _opcoes(s: Any) -> dict[str, Any]:
     return {
         "membros": await membros.listar(s, incluir_inativos=True),
@@ -102,15 +114,45 @@ async def _opcoes(s: Any) -> dict[str, Any]:
 async def listar(request: Request, usuario: Usuario = Depends(usuario_atual)) -> HTMLResponse:
     e = estado(request)
     filtro, valores = _filtro(request, usuario)
-    pagina = inteiro_ou_none(request.query_params.get("pagina")) or 1
+    q = request.query_params
+    pagina = inteiro_ou_none(q.get("pagina")) or 1
+    ordem = q.get("ordem", "")
+    if ordem not in svc.CAMPOS_ORDENACAO:
+        ordem = "data"
+    direcao = q.get("dir", "")
+    if direcao not in _INVERSA:
+        direcao = _DIRECAO_PADRAO[ordem]
     async with e.fabrica() as s:
-        resultado = await svc.listar(s, usuario.membro, filtro, pagina=pagina)
+        resultado = await svc.listar(
+            s, usuario.membro, filtro, pagina=pagina, ordem=ordem, decrescente=direcao == "desc"
+        )
         opcoes = await _opcoes(s)
     parcial = bool(request.headers.get("HX-Request"))
     template = "lancamentos/_tabela.html" if parcial else "lancamentos/lista.html"
-    consulta = urlencode({k: v for k, v in valores.items() if v})
+    filtros = {k: v for k, v in valores.items() if v}
+    # Um link por coluna: clicar na coluna já ordenada inverte o sentido.
+    links_ordem = {
+        campo: "/lancamentos?"
+        + urlencode(
+            filtros
+            | {
+                "ordem": campo,
+                "dir": _INVERSA[direcao] if campo == ordem else _DIRECAO_PADRAO[campo],
+            }
+        )
+        for campo in svc.CAMPOS_ORDENACAO
+    }
     return render(
-        request, template, usuario, resultado=resultado, filtro=valores, consulta=consulta, **opcoes
+        request,
+        template,
+        usuario,
+        resultado=resultado,
+        filtro=valores,
+        consulta=urlencode(filtros | {"ordem": ordem, "dir": direcao}),
+        ordem=ordem,
+        direcao=direcao,
+        links_ordem=links_ordem,
+        **opcoes,
     )
 
 

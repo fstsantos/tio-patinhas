@@ -104,7 +104,7 @@ async def test_fluxo_de_voz_com_botao(
     voz = {"file_id": "x", "file_unique_id": "y", "duration": 3}
     await handlers.on_voz(_update(3, voz=voz), contexto)  # type: ignore[arg-type]
     texto, teclado = enviadas[0]
-    assert "Débito R$ 20,00 · padaria" in texto
+    assert "Débito R$ 20,00 · Padaria" in texto
     dados = teclado.inline_keyboard[0][0].callback_data
 
     respostas: list[tuple[str, dict[str, Any]]] = []

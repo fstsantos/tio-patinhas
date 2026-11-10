@@ -274,7 +274,7 @@ async def test_voz_exige_confirmacao(
     m = msg(None)
     r = await bot.voz(m, b"ogg")
     assert r is not None and len(r.botoes) == 2
-    assert "Débito R$ 10,50 · mercado" in r.textos[0]
+    assert "Débito R$ 10,50 · Mercado" in r.textos[0]
     assert await contar(fabrica, Lancamento) == 0
     # reenvio do mesmo áudio: mesma resposta, sem nova confirmação nem nova transcrição
     assert await bot.voz(m, b"ogg") == r
@@ -314,8 +314,8 @@ async def test_voz_com_varios_lancamentos(
     assert r is not None and [b.rotulo for b in r.botoes] == ["✅ Confirmar todos", "❌ Cancelar"]
     texto = r.textos[0]
     assert "Entendi 2 lançamentos:" in texto and "Confirma o registro de todos?" in texto
-    assert "1. Débito R$ 20,00 · cerveja · 20/03/2026" in texto
-    assert "2. Crédito R$ 300,00 em 3x · tênis · compra em 20/03/2026" in texto
+    assert "1. Débito R$ 20,00 · Cerveja · 20/03/2026" in texto
+    assert "2. Crédito R$ 300,00 em 3x · Tênis · compra em 20/03/2026" in texto
     voz = next(x for x in caplog.records if x.message == "voz_interpretada").__dict__
     assert voz["lancamentos_no_lote"] == 2 and voz["via_llm"] and voz["comando"] is None
     assert await contar(fabrica, Lancamento) == 0
@@ -323,7 +323,7 @@ async def test_voz_com_varios_lancamentos(
 
     ok = await _confirmar(bot, r)
     assert "2 lançamentos registrados" in ok.texto
-    assert "Débito R$ 20,00 · cerveja" in ok.texto and "Crédito R$ 300,00 em 3x · tênis" in ok.texto
+    assert "Débito R$ 20,00 · Cerveja" in ok.texto and "Crédito R$ 300,00 em 3x · Tênis" in ok.texto
     async with fabrica() as s:
         lancs = list((await s.execute(select(Lancamento).order_by(Lancamento.id))).scalars())
         assert [(x.tipo, x.valor_total, x.origem) for x in lancs] == [
@@ -452,6 +452,6 @@ async def test_logs_de_voz_trazem_transcricao(
     voz = ev["voz_interpretada"].__dict__
     assert voz["transcricao"] == "débito de dez reais no mercado"
     assert voz["comando"] == "Debito" and voz["chat"] == "privado"
-    assert ev["confirmacao_solicitada"].__dict__["descricao"] == "mercado"
+    assert ev["confirmacao_solicitada"].__dict__["descricao"] == "Mercado"
     await _confirmar(bot, r, chat=ANA)
     assert _eventos(caplog)["lancamento_registrado"].__dict__["origem"] == "TELEGRAM_VOZ"

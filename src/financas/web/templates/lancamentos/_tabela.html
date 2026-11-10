@@ -1,8 +1,14 @@
+{# Mantêm a ordenação quando os filtros (formulário #filtros) são reaplicados. #}
+<input type="hidden" name="ordem" value="{{ ordem }}" form="filtros">
+<input type="hidden" name="dir" value="{{ direcao }}" form="filtros">
+{% macro th(campo, rotulo, classe="") -%}
+<th{% if classe %} class="{{ classe }}"{% endif %}{% if ordem == campo %} aria-sort="{{ 'ascending' if direcao == 'asc' else 'descending' }}"{% endif %}><a class="ordenar" href="{{ links_ordem[campo] }}" hx-get="{{ links_ordem[campo] }}" hx-target="#tabela" hx-push-url="true" title="Ordenar por {{ rotulo|lower }}">{{ rotulo }}{% if ordem == campo %} <span aria-hidden="true">{{ '▲' if direcao == 'asc' else '▼' }}</span>{% endif %}</a></th>
+{%- endmacro %}
 <p class="sutil" aria-live="polite">{{ resultado.total }} lançamento(s)</p>
 {% if resultado.itens %}
 <div class="rolagem">
 <table class="tabela">
-  <thead><tr><th>Código</th><th>Data</th><th>Tipo</th><th>Descrição</th><th>Titular</th><th>Origem</th><th class="num">Valor</th></tr></thead>
+  <thead><tr>{{ th('codigo', 'Código') }}{{ th('data', 'Data') }}{{ th('tipo', 'Tipo') }}<th>Descrição</th>{{ th('titular', 'Titular') }}{{ th('origem', 'Origem') }}{{ th('valor', 'Valor', 'num') }}</tr></thead>
   <tbody>
   {% for item in resultado.itens %}{% set l = item.lancamento %}
     <tr class="{% if l.status == 'CANCELADO' %}linha-cancelada{% endif %}">

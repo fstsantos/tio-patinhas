@@ -339,6 +339,58 @@ async def test_listagem_filtros_e_htmx(cliente: httpx.AsyncClient, pessoas: dict
     assert "<html" not in r.text and "1 lançamento(s)" in r.text
 
 
+def _codigos(html: str) -> list[int]:
+    """Códigos na ordem em que aparecem nas linhas da tabela."""
+    corpo = html.split("<tbody>")[1].split("</tbody>", maxsplit=1)[0]
+    return [int(x) for x in re.findall(r'href="/lancamentos/(\d+)"', corpo)]
+
+
+async def test_listagem_ordenacao(cliente: httpx.AsyncClient, pessoas: dict[str, int]) -> None:
+    await entrar(cliente, "adm")
+    ana, bia = str(pessoas["ana"]), str(pessoas["bia"])
+    a = await _criar(cliente, descricao="Aluguel", valor="50,00", data="2026-03-10", titular=bia)
+    b = await _criar(
+        cliente, descricao="Bônus", valor="900,00", data="2026-03-05", tipo="RECEITA", titular=ana
+    )
+    c = await _criar(
+        cliente,
+        descricao="Celular",
+        valor="300,00",
+        data="2026-03-15",
+        tipo="CREDITO",
+        parcelas="3",
+        titular=ana,
+    )
+
+    async def ordem(consulta: str) -> list[int]:
+        r = await cliente.get(f"/lancamentos?{consulta}")
+        assert r.status_code == 200
+        return _codigos(r.text)
+
+    # Padrão e parâmetros inválidos: data, mais recente primeiro.
+    assert await ordem("") == [c, a, b]
+    assert await ordem("ordem=senha_hash&dir=qualquer") == [c, a, b]
+    assert await ordem("ordem=data&dir=asc") == [b, a, c]
+    assert await ordem("ordem=codigo&dir=asc") == [a, b, c]
+    assert await ordem("ordem=codigo") == [c, b, a]  # sem sentido: números do maior ao menor
+    assert await ordem("ordem=valor&dir=asc") == [a, c, b]
+    assert await ordem("ordem=valor&dir=desc") == [b, c, a]
+    assert await ordem("ordem=tipo") == [c, a, b]  # Crédito, Débito, Receita
+    assert await ordem("ordem=titular") == [c, b, a]  # Ana (mais recente primeiro), Bia
+    assert await ordem("ordem=titular&dir=desc") == [a, c, b]
+    assert await ordem("ordem=origem") == [c, a, b]  # todos da web: vale o desempate por data
+
+    # A ordenação convive com os filtros, o cabeçalho inverte o sentido e a marca aparece.
+    r = await cliente.get("/lancamentos?tipo=DEBITO&ordem=valor&dir=asc")
+    assert _codigos(r.text) == [a]
+    assert 'aria-sort="ascending"' in r.text
+    assert 'href="/lancamentos?tipo=DEBITO&amp;status=ATIVO&amp;ordem=valor&amp;dir=desc"' in r.text
+    assert (
+        'href="/lancamentos?tipo=DEBITO&amp;status=ATIVO&amp;ordem=titular&amp;dir=asc"' in r.text
+    )
+    assert '<input type="hidden" name="ordem" value="valor" form="filtros">' in r.text
+
+
 # ------------------------------------------------------------------ membros e categorias
 
 

@@ -54,7 +54,7 @@ async def test_anthropic_proposta_validada_pelo_parser() -> None:
     cli = ClienteFalso(_resposta(UBER))
     llm = LLMAnthropic("k", cliente=cli)
     r = await interpretar_voz("aquela corrida deu trinta e dois e noventa", HOJE, llm=llm)
-    assert r.comando == c.Debito(Decimal("32.90"), "uber", HOJE) and r.via_llm
+    assert r.comando == c.Debito(Decimal("32.90"), "Uber", HOJE) and r.via_llm
     req = cli.chamadas[0]
     assert req["model"] == "claude-haiku-5-5"
     assert req["output_config"] == {
@@ -133,7 +133,7 @@ def _chat(conteudo: Any, status: int = 200) -> httpx.Response:
 async def test_compativel_proposta_validada_pelo_parser() -> None:
     llm, pedidos = _compativel(_chat("```json\n" + json.dumps(UBER) + "\n```"))
     r = await interpretar_voz("aquela corrida deu trinta e dois e noventa", HOJE, llm=llm)
-    assert r.comando == c.Debito(Decimal("32.90"), "uber", HOJE) and r.via_llm
+    assert r.comando == c.Debito(Decimal("32.90"), "Uber", HOJE) and r.via_llm
     (req,) = pedidos
     assert str(req.url) == "https://llm.exemplo/v1/chat/completions"
     assert req.headers["authorization"] == "Bearer k"

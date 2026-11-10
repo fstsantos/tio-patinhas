@@ -156,3 +156,26 @@ async def test_cancelamento_reflete_imediatamente(
     async with fabrica() as s:
         r = await relatorios.resumo_mensal(s, Mes(2026, 3), HOJE)
     assert r.orcamento.parcelas == D("40.00")
+
+
+async def test_impacto_futuro_exclui_parcela_do_proprio_mes(
+    fabrica: async_sessionmaker[AsyncSession],
+) -> None:
+    """Com o mês da 1ª parcela igual ao da compra, essa parcela entra no saldo do mês
+    e não reaparece no "impacto nos meses seguintes"."""
+    clock = f.relogio(HOJE)
+    async with fabrica() as s, s.begin():
+        ana = await f.membro(s, "Ana")
+        dados = DadosLancamento(
+            CREDITO, D("300.00"), "tv", date(2026, 3, 2), 3, primeira_competencia=date(2026, 3, 1)
+        )
+        await svc.criar(s, clock, ana, dados, origem=Origem.WEB)
+        avista = DadosLancamento(
+            CREDITO, D("50.00"), "livro", date(2026, 3, 3), 1, primeira_competencia=date(2026, 3, 1)
+        )
+        await svc.criar(s, clock, ana, avista, origem=Origem.WEB)
+    async with fabrica() as s:
+        r = await relatorios.resumo_mensal(s, Mes(2026, 3), HOJE)
+    assert r.orcamento.parcelas == D("150.00")
+    assert r.total_credito_contratado == D("350.00")
+    assert r.impacto_futuro == [(Mes(2026, 4), D("100.00")), (Mes(2026, 5), D("100.00"))]

@@ -7,14 +7,16 @@ import getpass
 from typing import Annotated
 
 import typer
-from sqlalchemy import func, select
 
+from financas.clock import RelogioSistema
 from financas.config import get_settings
-from financas.db.models import Membro, Papel
+from financas.db.models import Papel
 from financas.db.session import criar_engine, criar_fabrica, transacao
+from financas.domain.erros import ErroDominio
 from financas.logging import configurar_logs
-from financas.services import senhas
+from financas.services import membros
 from financas.services.integridade import Problema, verificar_integridade
+from financas.services.membros import DadosMembro
 
 app = typer.Typer(help="Tio Patinhas — gerenciador financeiro familiar.", no_args_is_help=True)
 
@@ -38,37 +40,23 @@ def criar_admin(
     if senha != getpass.getpass("Confirme a senha: "):
         typer.secho("As senhas não conferem.", fg=typer.colors.RED, err=True)
         raise typer.Exit(1)
+    dados = DadosMembro(nome, Papel.ADMIN, True, telegram_id, login, senha)
     try:
-        senha_hash = senhas.gerar_hash(senha)
-    except ValueError as e:
+        criado = asyncio.run(_criar_admin(dados))
+    except ErroDominio as e:
         typer.secho(str(e), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from e
-    asyncio.run(_criar_admin(nome.strip(), login.strip(), telegram_id, senha_hash))
+    typer.secho(f"Administrador '{criado}' criado.", fg=typer.colors.GREEN)
 
 
-async def _criar_admin(nome: str, login: str, telegram_id: int | None, senha_hash: str) -> None:
+async def _criar_admin(dados: DadosMembro) -> str:
+    """Passa pelo serviço de membros: mesmas validações e auditoria da web."""
     engine = criar_engine(get_settings().database_url)
     try:
         async with transacao(criar_fabrica(engine)) as s:
-            existe = await s.scalar(
-                select(func.count()).where(func.lower(Membro.login_web) == login.lower())
-            )
-            if existe:
-                typer.secho(f"O login '{login}' já existe.", fg=typer.colors.RED, err=True)
-                raise typer.Exit(1)
-            s.add(
-                Membro(
-                    nome=nome,
-                    login_web=login,
-                    senha_hash=senha_hash,
-                    telegram_user_id=telegram_id,
-                    papel=Papel.ADMIN.value,
-                    ativo=True,
-                )
-            )
+            return (await membros.criar_admin_cli(s, RelogioSistema(), dados)).nome
     finally:
         await engine.dispose()
-    typer.secho(f"Administrador '{nome}' criado.", fg=typer.colors.GREEN)
 
 
 @app.command("verificar-integridade")

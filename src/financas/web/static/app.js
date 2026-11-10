@@ -3,8 +3,11 @@
 
 function alternarParcelas() {
   const marcado = document.querySelector("input[name=tipo]:checked");
-  const campo = document.querySelector("[data-parcelas]");
-  if (campo && marcado) campo.hidden = marcado.value !== "CREDITO";
+  if (!marcado) return;
+  // Parcelas e mês da 1ª parcela: os dois campos só valem para crédito.
+  document.querySelectorAll("[data-parcelas]").forEach((campo) => {
+    campo.hidden = marcado.value !== "CREDITO";
+  });
 }
 
 function brl(v) {

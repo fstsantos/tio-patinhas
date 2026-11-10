@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from collections.abc import AsyncIterator
 from datetime import date
+from decimal import Decimal
+from pathlib import Path
 
 import httpx
 import pytest
@@ -13,9 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from financas.bot.processador import Mensagem, Processador
 from financas.config import Settings
-from financas.db.models import Lancamento, Membro, Papel
+from financas.db.models import Categoria, Lancamento, Membro, Papel
 from financas.services import lancamentos as svc_lanc
 from financas.services import senhas
+from financas.web import app as web_app
 from financas.web.app import criar_app
 from tests import factories as f
 
@@ -522,3 +525,60 @@ async def test_mes_da_primeira_parcela_invalido(
     }
     r = await cliente.post("/lancamentos", data=dados)
     assert r.status_code == 422 and mensagem in r.text
+
+
+# ------------------------------------------------------------------ regressões
+
+
+async def test_editar_mantendo_categoria_desativada(
+    cliente: httpx.AsyncClient, pessoas: dict[str, int], fabrica: async_sessionmaker[AsyncSession]
+) -> None:
+    """Desativar a categoria não pode impedir a edição de quem já a usava."""
+    async with fabrica() as s, s.begin():
+        cat = await f.categoria(s, "Mercado")
+        outra = await f.categoria(s, "Lazer")
+    await entrar(cliente, "ana")
+    lid = await _criar(cliente, categoria=str(cat.id))
+    async with fabrica() as s, s.begin():
+        for c in (cat, outra):
+            (await s.get(Categoria, c.id)).ativa = False  # type: ignore[union-attr]
+
+    base = {"valor": "12,00", "descricao": "mercado", "data": "2026-03-20", "revisao": "1"}
+    token = await csrf_de(cliente, f"/lancamentos/{lid}/editar")
+    r = await cliente.post(
+        f"/lancamentos/{lid}/editar",
+        data={**base, "categoria": str(cat.id), "csrf_token": token},
+    )
+    assert r.status_code == 303, r.text
+    async with fabrica() as s:
+        lanc = await s.get(Lancamento, lid)
+        assert lanc is not None
+        assert (lanc.valor_total, lanc.categoria_id) == (Decimal("12.00"), cat.id)
+
+    # Trocar para outra categoria inativa continua proibido.
+    r = await cliente.post(
+        f"/lancamentos/{lid}/editar",
+        data={**base, "revisao": "2", "categoria": str(outra.id), "csrf_token": token},
+    )
+    assert r.status_code == 404
+    assert "inativa" in r.text
+
+
+@pytest.mark.parametrize("mes", ["0001-01", "9999-12", "12/9999", "1999-12", "2101-01", "abc"])
+async def test_dashboard_mes_fora_do_intervalo_usa_o_atual(
+    cliente: httpx.AsyncClient, pessoas: dict[str, int], mes: str
+) -> None:
+    await entrar(cliente, "ana")
+    r = await cliente.get("/", params={"mes": mes})
+    assert r.status_code == 200
+    assert "Março de 2026" in r.text
+
+
+async def test_js_alterna_todos_os_campos_de_credito() -> None:
+    """O formulário tem dois campos só de crédito (parcelas e mês da 1ª parcela)."""
+    raiz = Path(web_app.__file__).parent
+    form = (raiz / "templates/lancamentos/form.html").read_text(encoding="utf-8")
+    js = (raiz / "static/app.js").read_text(encoding="utf-8")
+    assert form.count("data-parcelas") == 2
+    assert 'querySelectorAll("[data-parcelas]")' in js
+    assert 'querySelector("[data-parcelas]")' not in js

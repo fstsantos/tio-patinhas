@@ -234,6 +234,9 @@ async def resumo_mensal(
             .where(
                 Parcela.lancamento_id.in_([c.id for c in compras]),
                 Parcela.status == StatusParcela.PENDENTE.value,
+                # Parcela já no próprio mês (mês da 1ª parcela informado) entra no
+                # saldo como compromisso do mês; aqui ficam só os meses seguintes.
+                Parcela.competencia > mes.primeiro_dia,
             )
             .group_by(Parcela.competencia)
             .order_by(Parcela.competencia)

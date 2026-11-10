@@ -637,3 +637,18 @@ async def test_js_alterna_todos_os_campos_de_credito() -> None:
     assert form.count("data-parcelas") == 2
     assert 'querySelectorAll("[data-parcelas]")' in js
     assert 'querySelector("[data-parcelas]")' not in js
+
+
+async def test_alternador_de_tema(cliente: httpx.AsyncClient, pessoas: dict[str, int]) -> None:
+    """O botão de modo escuro aparece no login e no topo, e tema.js carrega no <head>."""
+    login = await cliente.get("/login")
+    assert "data-alternar-tema" in login.text and 'class="tema-solto"' in login.text
+    await entrar(cliente, "ana")
+    r = await cliente.get("/")
+    assert r.text.count("data-alternar-tema") == 1 and 'class="tema-solto"' not in r.text
+    cabeca = r.text.split("</head>")[0]
+    assert '<script src="/static/tema.js"></script>' in cabeca  # sem defer: evita piscar
+    js = await cliente.get("/static/tema.js")
+    assert js.status_code == 200 and "localStorage" in js.text
+    css = (Path(web_app.__file__).parent / "static/app.css").read_text(encoding="utf-8")
+    assert ':root[data-tema="escuro"]' in css

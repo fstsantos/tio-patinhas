@@ -1,4 +1,5 @@
 <!doctype html>
+{% macro botao_tema() %}<button class="botao-tema" type="button" data-alternar-tema aria-label="Modo escuro" aria-pressed="false" title="Usar modo escuro"><span data-icone-tema aria-hidden="true">🌙</span></button>{% endmacro %}
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
@@ -6,6 +7,7 @@
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <title>{% block titulo %}Tio Patinhas{% endblock %} · Tio Patinhas</title>
   <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/tema.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js" defer></script>
   {% block cabecalho %}{% endblock %}
   <script src="/static/app.js" defer></script>
@@ -25,6 +27,7 @@
       {% endif %}
     </nav>
     <div class="conta">
+      {{ botao_tema() }}
       <span>{{ usuario.membro.nome }}{% if usuario.eh_admin %} <small class="selo">admin</small>{% endif %}</span>
       <form method="post" action="/sair">
         <input type="hidden" name="csrf_token" value="{{ csrf }}">
@@ -33,6 +36,8 @@
     </div>
   </div>
 </header>
+{% else %}
+<div class="tema-solto">{{ botao_tema() }}</div>
 {% endif %}
 <main id="conteudo" class="conteudo">
   {% if mensagem %}<div class="aviso sucesso" role="status">{{ mensagem }}</div>{% endif %}

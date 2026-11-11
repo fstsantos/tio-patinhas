@@ -143,7 +143,7 @@ details > summary { cursor: pointer; font-weight: 600; }
 .htmx-request #tabela, #tabela.htmx-request { opacity: .55; transition: opacity .2s; }
 
 @media (max-width: 640px) {
-  .conta span { display: none; }
+  .conta > span { display: none; }  /* nome do usuário (não o ícone do tema) */
   /* Topo no celular: marca e conta na 1ª linha; menu na 2ª, rolando de lado se faltar espaço. */
   .topo-interno { gap: .5rem 1rem; }
   .conta { margin-left: auto; }

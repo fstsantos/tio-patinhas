@@ -77,7 +77,7 @@ def fabrica(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 
 TABELAS = (
     "tentativas_login, sessoes_web, confirmacoes_pendentes, updates_processados, "
-    "auditoria, parcelas, lancamentos, categorias, membros"
+    "auditoria, parcelas, lancamentos, recorrencias, categorias, membros"
 )
 
 

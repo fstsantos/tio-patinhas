@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Annotated
 
@@ -19,7 +21,7 @@ from financas.integrations.fatura.itau import ErroFatura, Fatura, ler_fatura
 from financas.integrations.llm import ErroLLM, criar_llm
 from financas.interpretation.interpretador import interpretar_com_llm
 from financas.logging import configurar_logs
-from financas.services import importacao, membros
+from financas.services import importacao, membros, recorrencias
 from financas.services.importacao import Plano, Regras, Situacao
 from financas.services.integridade import Problema, verificar_integridade
 from financas.services.membros import DadosMembro
@@ -82,6 +84,25 @@ async def _verificar() -> list[Problema]:
     try:
         async with transacao(criar_fabrica(engine)) as s:
             return await verificar_integridade(s)
+    finally:
+        await engine.dispose()
+
+
+@app.command("gerar-recorrentes")
+def gerar_recorrentes() -> None:
+    """Lança as recorrências que faltam até o mês corrente (a web já faz isso sozinha)."""
+    criados = asyncio.run(_gerar_recorrentes())
+    for descricao, data, valor in criados:
+        typer.echo(f"{data:%d/%m/%Y}  {descricao}  {formatar_brl(valor)}")
+    typer.secho(f"{len(criados)} lançamento(s) gerado(s).", fg=typer.colors.GREEN)
+
+
+async def _gerar_recorrentes() -> list[tuple[str, date, Decimal]]:
+    engine = criar_engine(get_settings().database_url)
+    try:
+        async with transacao(criar_fabrica(engine)) as s:
+            criados = await recorrencias.gerar(s, RelogioSistema())
+            return [(c.descricao, c.data_operacao, c.valor_total) for c in criados]
     finally:
         await engine.dispose()
 

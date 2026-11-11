@@ -6,7 +6,11 @@ toda regra de negócio fica em ``financas.services``.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -24,11 +28,12 @@ from starlette.datastructures import FormData
 from financas.clock import Clock, RelogioSistema
 from financas.config import Settings, get_settings
 from financas.db.models import Origem, StatusLancamento, TipoLancamento
-from financas.db.session import criar_engine, criar_fabrica
+from financas.db.session import criar_engine, criar_fabrica, transacao
 from financas.domain.calendario import FUSO, Mes
 from financas.domain.dinheiro import formatar_brl
 from financas.domain.erros import NaoEncontrado, SemPermissao
 from financas.logging import configurar_logs
+from financas.services import recorrencias as svc_recorrencias
 from financas.web.auth import (
     CAMPO_CSRF,
     COOKIE_SESSAO,
@@ -39,7 +44,11 @@ from financas.web.auth import (
     tokens_iguais,
 )
 
+log = logging.getLogger(__name__)
+
 RAIZ = Path(__file__).parent
+# De quanto em quanto tempo a web confere se há recorrências a lançar (virada do mês).
+INTERVALO_RECORRENCIAS = 3600.0
 
 NOMES_TIPO = {
     TipoLancamento.DEBITO.value: "Débito",
@@ -51,6 +60,7 @@ NOMES_ORIGEM = {
     Origem.TELEGRAM_VOZ.value: "Telegram (voz)",
     Origem.WEB.value: "Web",
     Origem.CLI.value: "Linha de comando",
+    Origem.RECORRENCIA.value: "Recorrência",
 }
 MENSAGENS = {
     "criado": "Lançamento registrado.",
@@ -59,6 +69,9 @@ MENSAGENS = {
     "restaurado": "Lançamento restaurado.",
     "membro_salvo": "Membro salvo.",
     "categoria_salva": "Categoria salva.",
+    "recorrencia_salva": "Recorrência salva.",
+    "recorrencia_encerrada": "Recorrência encerrada. Os lançamentos já feitos continuam.",
+    "recorrencia_reativada": "Recorrência reativada.",
 }
 
 
@@ -167,6 +180,33 @@ def _criar_templates() -> Jinja2Templates:
 
 # ------------------------------------------------------------------ aplicação
 
+
+async def gerar_recorrencias(e: Estado) -> int:
+    """Lança as recorrências pendentes até o mês corrente; devolve quantas lançou."""
+    async with transacao(e.fabrica) as s:
+        return len(await svc_recorrencias.gerar(s, e.clock))
+
+
+async def _laco_recorrencias(e: Estado) -> None:
+    while True:
+        try:
+            await gerar_recorrencias(e)
+        except Exception:
+            log.exception("recorrencias_falha_na_geracao")
+        await asyncio.sleep(INTERVALO_RECORRENCIAS)
+
+
+@asynccontextmanager
+async def _ciclo_de_vida(app: FastAPI) -> AsyncIterator[None]:
+    tarefa = asyncio.create_task(_laco_recorrencias(app.state.financas))
+    try:
+        yield
+    finally:
+        tarefa.cancel()
+        with suppress(asyncio.CancelledError):
+            await tarefa
+
+
 CSP = (
     "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
     "style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; "
@@ -184,7 +224,13 @@ def criar_app(
     if fabrica is None:
         configurar_logs(cfg.log_level, json_=cfg.log_json)
         fabrica = criar_fabrica(criar_engine(cfg.database_url))
-    app = FastAPI(title="Tio Patinhas", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(
+        title="Tio Patinhas",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=_ciclo_de_vida,
+    )
     app.state.financas = Estado(fabrica, clock or RelogioSistema(), cfg, _criar_templates())
     app.mount("/static", StaticFiles(directory=str(RAIZ / "static")), name="static")
 
@@ -235,8 +281,15 @@ def criar_app(
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    from financas.web.routes import auth, categorias, dashboard, lancamentos, membros  # noqa: PLC0415
+    from financas.web.routes import (  # noqa: PLC0415
+        auth,
+        categorias,
+        dashboard,
+        lancamentos,
+        membros,
+        recorrencias,
+    )
 
-    for modulo in (auth, dashboard, lancamentos, membros, categorias):
+    for modulo in (auth, dashboard, lancamentos, recorrencias, membros, categorias):
         app.include_router(modulo.router)
     return app

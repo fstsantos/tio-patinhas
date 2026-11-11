@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titulo %}Recorrentes{% endblock %}
+{% macro tabela(lista, encerradas=False) %}
+<div class="rolagem"><table class="tabela">
+  <thead><tr><th>Descrição</th><th>Tipo</th><th>Dia</th><th>{% if encerradas %}Último mês{% else %}Próximo lançamento{% endif %}</th><th>Titular</th><th class="num">Valor</th><th></th></tr></thead>
+  <tbody>{% for r in lista %}<tr>
+    <td>{{ r.descricao }}{% if r.categoria_id %}<br><small class="sutil">{{ cats.get(r.categoria_id, '') }}</small>{% endif %}</td>
+    <td><span class="etiqueta {{ 'receita' if r.tipo == 'RECEITA' else 'debito' }}">{{ 'Receita' if r.tipo == 'RECEITA' else 'Despesa' }}</span></td>
+    <td>{{ r.dia }}</td>
+    <td>{% if encerradas %}{{ r.fim | mes if r.fim else '—' }}{% elif proximas[r.id] %}{{ proximas[r.id] | data }}{% else %}<span class="sutil">terminou em {{ r.fim | mes }}</span>{% endif %}</td>
+    <td>{{ nomes.get(r.membro_id, '—') }}</td>
+    <td class="num">{{ r.valor | brl }}</td>
+    <td>{% if pode(r) %}<div class="acoes">
+      {% if not encerradas %}<a class="botao" href="/recorrentes/{{ r.id }}/editar">Editar</a>{% endif %}
+      <form method="post" action="/recorrentes/{{ r.id }}/{{ 'reativar' if encerradas else 'encerrar' }}" class="linha-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="botao" type="submit">{{ 'Reativar' if encerradas else 'Encerrar' }}</button>
+      </form>
+    </div>{% endif %}</td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% endmacro %}
+{% block conteudo %}
+<div class="titulo-pagina">
+  <h1>Recorrentes</h1>
+  <a class="botao primario" href="/recorrentes/nova">Nova recorrência</a>
+</div>
+<p class="sutil">Receitas e despesas que se repetem todo mês (salário, aluguel, escola). O lançamento de cada mês é criado sozinho quando o mês começa, com a data do dia combinado, e já conta no saldo. Compras no cartão ficam de fora: elas chegam pela fatura.</p>
+<section class="cartao">
+  <h2>Ativas</h2>
+  {% if ativas %}{{ tabela(ativas) }}{% else %}<p class="vazio">Nenhuma recorrência ativa.</p>{% endif %}
+</section>
+{% if encerradas %}
+<section class="cartao">
+  <h2>Encerradas</h2>
+  <p class="sutil">Ao reativar, os meses que passaram com ela encerrada não são lançados.</p>
+  {{ tabela(encerradas, True) }}
+</section>
+{% endif %}
+{% endblock %}

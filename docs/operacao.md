@@ -149,6 +149,14 @@ make integridade DOCKER=1
   conhece as cidades mais comuns (`CIDADES_PADRAO` em `integrations/fatura/itau.py`).
   Cidade desconhecida fica na descrição — acrescente-a à lista.
 
+## Recorrências
+
+O processo web lança sozinho as recorrências do mês: confere ao subir e a cada hora.
+Não há nada a agendar. Se a web ficar parada na virada do mês, os lançamentos entram
+quando ela voltar; para forçar na hora, `make recorrentes` (`DOCKER=1` no Compose).
+Recorrência que não pôde ser gerada aparece no log da web como
+`recorrencia_nao_gerada` (com o motivo) e é tentada de novo na hora seguinte.
+
 ## Manutenção do banco
 
 - Auditoria é somente de inserção (trigger). Para o usuário da aplicação em produção,

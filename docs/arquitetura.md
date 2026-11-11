@@ -16,8 +16,8 @@ Voz: integrations/stt ─► interpretation/* ─► (integrations/llm opcional)
 
 | Camada | Pacote | Responsabilidade | Regra |
 | --- | --- | --- | --- |
-| Domínio | `domain/` | dinheiro, calendário, parcelamento, orçamento, texto, erros | sem I/O; 100% testável sem banco |
-| Serviços | `services/` | lançamentos, relatórios, autorização, auditoria, idempotência, confirmações, membros, categorias, integridade | únicos pontos de entrada das regras; recebem a sessão e o relógio |
+| Domínio | `domain/` | dinheiro, calendário, parcelamento, recorrência, orçamento, texto, erros | sem I/O; 100% testável sem banco |
+| Serviços | `services/` | lançamentos, recorrências, relatórios, autorização, auditoria, idempotência, confirmações, membros, categorias, integridade | únicos pontos de entrada das regras; recebem a sessão e o relógio |
 | Persistência | `db/` | modelos ORM, sessão | esquema só por migrações Alembic |
 | Interpretação | `interpretation/` | parser de texto, números falados, interpretador de voz | independente do Telegram |
 | Integrações | `integrations/` | STT (faster-whisper, OpenAI), LLM (Anthropic, compatível com OpenAI), leitor de fatura | por interfaces (`SpeechToText`, `LLMProvider`) |
@@ -36,4 +36,6 @@ Voz: integrations/stt ─► interpretation/* ─► (integrations/llm opcional)
   relógio, inclusive `created_at`/`updated_at` gravados pelos serviços.
 - **Processador do bot independente do Telegram**: `bot/processador.py` recebe
   `Mensagem` e devolve `Resposta`, o que permite testar fluxos sem rede.
+- **Recorrências sem agendador próprio**: o processo web confere, ao subir e a cada
+  hora, se falta lançar algum mês (`web/app.py`); a geração é idempotente (ADR 0007).
 - ADRs em `docs/adr/`.

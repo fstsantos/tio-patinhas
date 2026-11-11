@@ -14,7 +14,7 @@ else
 endif
 
 .PHONY: help install lint format typecheck test test-unit test-integration cov check \
-        up down logs migrate migrate-down criar-admin integridade importar-fatura testar-llm test-docker \
+        up down logs migrate migrate-down criar-admin integridade recorrentes importar-fatura testar-llm test-docker \
         web bot backup restore
 
 help:  ## Lista os alvos
@@ -68,6 +68,9 @@ criar-admin:  ## Cria um administrador (ARGS="--telegram-id <id>")
 
 integridade:  ## Verifica integridade de compras e parcelas
 	$(RUN) financas verificar-integridade
+
+recorrentes:  ## Lança as recorrências que faltam até o mês corrente
+	$(RUN) financas gerar-recorrentes
 
 importar-fatura:  ## Importa fatura do Itaú: ARQUIVO=faturas/x.xlsx ARGS="--membro Nome [--regras faturas/regras.toml] [--confirmar]"
 ifeq ($(DOCKER),1)

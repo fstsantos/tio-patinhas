@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from financas.bot.processador import Mensagem, Processador
 from financas.config import Settings
-from financas.db.models import Categoria, Lancamento, Membro, Papel
+from financas.db.models import Categoria, Lancamento, Membro, Papel, Recorrencia
 from financas.services import lancamentos as svc_lanc
 from financas.services import senhas
 from financas.web import app as web_app
@@ -654,3 +654,116 @@ async def test_alternador_de_tema(cliente: httpx.AsyncClient, pessoas: dict[str,
     assert js.status_code == 200 and "localStorage" in js.text
     css = (Path(web_app.__file__).parent / "static/app.css").read_text(encoding="utf-8")
     assert ':root[data-tema="escuro"]' in css
+
+
+# ------------------------------------------------------------------ recorrências
+
+
+async def _recorrencia(c: httpx.AsyncClient, **dados: str) -> httpx.Response:
+    base = {"tipo": "DEBITO", "valor": "1.500,00", "descricao": "Aluguel", "dia": "25"}
+    token = await csrf_de(c, "/recorrentes/nova")
+    return await c.post("/recorrentes", data={**base, **dados, "csrf_token": token})
+
+
+async def test_recorrencia_criar_editar_encerrar(
+    cliente: httpx.AsyncClient, pessoas: dict[str, int], fabrica: async_sessionmaker[AsyncSession]
+) -> None:
+    await entrar(cliente, "ana")
+    r = await _recorrencia(cliente)
+    assert r.status_code == 303 and r.headers["location"] == "/recorrentes?msg=recorrencia_salva"
+    async with fabrica() as s:
+        lanc = (await s.execute(select(Lancamento))).scalar_one()
+    # O deste mês já foi lançado, com a data futura do dia 25.
+    assert (lanc.data_operacao, lanc.valor_total) == (date(2026, 3, 25), Decimal("1500.00"))
+    assert (lanc.membro_id, lanc.origem) == (pessoas["ana"], "RECORRENCIA")
+    rid = lanc.recorrencia_id
+
+    r = await cliente.get("/recorrentes")
+    assert "Aluguel" in r.text and "25/04/2026" in r.text  # próximo lançamento
+    r = await cliente.get(f"/lancamentos/{lanc.id}")
+    assert "Recorrência" in r.text and "vale só para este mês" in r.text
+    assert "R$ 1.500,00" in (await cliente.get("/")).text  # já conta no mês
+
+    pagina = await cliente.get(f"/recorrentes/{rid}/editar")
+    assert 'value="1.500,00"' in pagina.text
+    r = await cliente.post(
+        f"/recorrentes/{rid}/editar",
+        data={
+            "csrf_token": _csrf(pagina.text),
+            "valor": "1.600,00",
+            "descricao": "Aluguel",
+            "dia": "25",
+            "fim": "2026-12",
+        },
+    )
+    assert r.status_code == 303, r.text
+    async with fabrica() as s:
+        rec = await s.get_one(Recorrencia, rid)
+    assert (rec.valor, rec.fim, rec.inicio) == (
+        Decimal("1600.00"),
+        date(2026, 12, 1),
+        date(2026, 3, 1),
+    )
+
+    token = _csrf((await cliente.get("/recorrentes")).text)
+    r = await cliente.post(f"/recorrentes/{rid}/encerrar", data={"csrf_token": token})
+    assert r.headers["location"] == "/recorrentes?msg=recorrencia_encerrada"
+    r = await cliente.get("/recorrentes")
+    assert "Encerradas" in r.text and "Reativar" in r.text
+    r = await cliente.post(f"/recorrentes/{rid}/reativar", data={"csrf_token": token})
+    assert r.headers["location"] == "/recorrentes?msg=recorrencia_reativada"
+    assert (
+        await cliente.post(f"/recorrentes/{rid}/apagar", data={"csrf_token": token})
+    ).status_code == 404
+    async with fabrica() as s:
+        assert len((await s.execute(select(Lancamento))).scalars().all()) == 1
+
+
+async def test_recorrencia_formulario_invalido_e_permissoes(
+    cliente: httpx.AsyncClient, pessoas: dict[str, int], fabrica: async_sessionmaker[AsyncSession]
+) -> None:
+    await entrar(cliente, "bia")
+    r = await _recorrencia(cliente, tipo="CREDITO", valor="10.5", dia="", fim="x")
+    assert r.status_code == 422
+    for trecho in ("Escolha o tipo.", "Informe o dia do mês", "formato aaaa-mm"):
+        assert trecho in r.text
+    assert (await _recorrencia(cliente, dia="40")).status_code == 422
+    assert (await _recorrencia(cliente, inicio="2026-02")).status_code == 422
+    # Membro não escolhe titular: o campo é ignorado.
+    assert (await _recorrencia(cliente, titular=str(pessoas["ana"]))).status_code == 303
+    async with fabrica() as s:
+        rec = (await s.execute(select(Recorrencia))).scalar_one()
+    assert rec.membro_id == pessoas["bia"]
+
+    cliente.cookies.clear()
+    await entrar(cliente, "ana")
+    r = await cliente.get("/recorrentes")
+    assert "Aluguel" in r.text and f"/recorrentes/{rec.id}/editar" not in r.text  # só consulta
+    token = _csrf(r.text)
+    assert (await cliente.get(f"/recorrentes/{rec.id}/editar")).status_code == 403
+    r = await cliente.post(f"/recorrentes/{rec.id}/encerrar", data={"csrf_token": token})
+    assert r.status_code == 403
+    assert (await cliente.get("/recorrentes/999/editar")).status_code == 404
+    assert (await cliente.post(f"/recorrentes/{rec.id}/encerrar")).status_code == 403  # sem CSRF
+
+    cliente.cookies.clear()
+    await entrar(cliente, "adm")
+    assert (
+        await _recorrencia(cliente, tipo="RECEITA", titular=str(pessoas["ana"]))
+    ).status_code == 303
+    assert (await cliente.get(f"/recorrentes/{rec.id}/editar")).status_code == 200
+
+
+async def test_web_gera_recorrencias_na_virada_do_mes(
+    cliente: httpx.AsyncClient,
+    pessoas: dict[str, int],
+    fabrica: async_sessionmaker[AsyncSession],
+    clock,
+) -> None:  # type: ignore[no-untyped-def]
+    await entrar(cliente, "ana")
+    assert (await _recorrencia(cliente)).status_code == 303
+    estado = web_app.Estado(fabrica, clock, Settings(_env_file=None), None)  # type: ignore[call-arg,arg-type]
+    assert await web_app.gerar_recorrencias(estado) == 0
+    clock.definir(f.relogio(date(2026, 4, 1), hora=4).agora())  # 1h de 1º de abril em São Paulo
+    assert await web_app.gerar_recorrencias(estado) == 1
+    assert await web_app.gerar_recorrencias(estado) == 0

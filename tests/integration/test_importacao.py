@@ -18,6 +18,7 @@ from financas.domain.erros import NaoEncontrado, OperacaoInvalida, SemPermissao
 from financas.integrations.fatura.itau import ler_fatura
 from financas.services import importacao as imp
 from financas.services import lancamentos as svc
+from financas.services import recorrencias as svc_rec
 from financas.services.importacao import RegraCategoria, Regras, Situacao
 from financas.services.integridade import verificar_integridade
 from tests import factories as f
@@ -169,6 +170,52 @@ async def test_reimportar_nao_duplica(
         bia = await imp.membro_por_nome(s, "Bia")
         plano = await imp.planejar(s, bia, ler_fatura(arquivo), REGRAS)
         assert not plano.com(Situacao.EXISTENTE)
+        assert await verificar_integridade(s) == []
+
+
+async def test_cobranca_de_recorrencia_nao_entra_duas_vezes(
+    fabrica: async_sessionmaker[AsyncSession], tmp_path: Path
+) -> None:
+    def recorrencia(valor: str, descricao: str, dia: int) -> svc_rec.DadosRecorrencia:
+        return svc_rec.DadosRecorrencia(svc.TipoLancamento.CREDITO, D(valor), descricao, dia)
+
+    outubro = f.relogio(date(2026, 10, 1))
+    async with fabrica() as s, s.begin():
+        carlos = await f.membro(s, "Carlos", admin=True)
+        bia = await f.membro(s, "Bia")
+        await svc_rec.criar(s, outubro, carlos, recorrencia("39.90", "Filmes", 10))
+        await svc_rec.criar(s, outubro, carlos, recorrencia("39.90", "Músicas", 13))
+        await svc_rec.criar(s, outubro, carlos, recorrencia("99.00", "Academia", 20))
+        await svc_rec.criar(s, outubro, bia, recorrencia("25.00", "Jornal", 9), titular_id=None)
+        # Compra comum de mesmo valor e data próxima não é recorrência: não casa.
+        await f.lancar(
+            s, outubro, carlos, svc.TipoLancamento.CREDITO, "18.90", "Padaria",
+            data=date(2026, 10, 8), parcelas=1,
+        )  # fmt: skip
+        fatura = f.planilha_fatura(
+            tmp_path / "nov.xlsx",
+            [
+                (date(2026, 10, 12), "Filmes.Com Assinatura", None, 39.9),  # mais perto do dia 13
+                (date(2026, 10, 11), "Musicas*Plano Familia", None, 39.9),  # sobra a do dia 10
+                (date(2026, 10, 12), "Outra Loja Qualquer", None, 39.9),  # nenhuma livre
+                (date(2026, 10, 26), "Academia Exemplo", None, 99),  # 6 dias: fora
+                (date(2026, 10, 21), "Academia Exemplo", "Parcela 1 de 2", 49.5),  # parcelada
+                (date(2026, 10, 9), "Jornal Diario", None, 25),  # recorrência de outro titular
+                (date(2026, 10, 9), "Loja Sem Regrasao Paulobra", None, 18.9),  # compra comum
+            ],
+        )
+        plano = await imp.planejar(s, carlos, ler_fatura(fatura), Regras())
+        assert [i.situacao for i in plano.itens] == [
+            Situacao.EXISTENTE,
+            Situacao.EXISTENTE,
+            *[Situacao.NOVA] * 5,
+        ]
+        assert "recorrência de 13/10" in plano.itens[0].detalhe
+        assert "recorrência de 10/10" in plano.itens[1].detalhe
+        assert len(await imp.executar(s, f.relogio(HOJE), plano)) == 5
+        # Reimportar: tudo já existe, e as recorrências seguem cobrindo as mesmas linhas.
+        plano = await imp.planejar(s, carlos, ler_fatura(fatura), Regras())
+        assert not plano.com(Situacao.NOVA)
         assert await verificar_integridade(s) == []
 
 

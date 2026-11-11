@@ -109,9 +109,10 @@ Entre com o login criado por `financas criar-admin`. Telas:
   para admin), criação, detalhe com parcelas vigentes e revisões substituídas, edição
   (com controle de concorrência), cancelamento com motivo, restauração (admin) e
   histórico de auditoria (admin).
-- **Recorrentes:** receitas e despesas que se repetem todo mês (salário, aluguel).
-  O lançamento de cada mês é criado sozinho quando o mês começa, com a data do dia
-  combinado, e já conta no saldo. Criar, editar, encerrar e reativar; cada membro
+- **Recorrentes:** receitas, despesas e compras no crédito que se repetem todo mês
+  (salário, aluguel, assinaturas). O lançamento de cada mês é criado sozinho quando o
+  mês começa, com a data do dia combinado; receita e débito já contam no saldo do mês,
+  e a compra no crédito cai no mês seguinte. Criar, editar, encerrar e reativar; cada membro
   altera as suas, o admin qualquer uma. Ver `docs/regras-de-negocio.md`.
 - **Membros** e **Categorias:** somente administradores.
 
@@ -195,7 +196,7 @@ gerenciado e segredos no gerenciador da plataforma.
 - Não há controle de pagamentos (parcela "paga"), saldo bancário nem transporte de
   saldo entre meses.
 - Parcelas individuais não são editáveis nem canceláveis.
-- Recorrências são só mensais, de receita ou débito, e cadastradas pela web. Só o mês
+- Recorrências são só mensais e cadastradas pela web; a de crédito é sempre à vista. Só o mês
   corrente é lançado: o resumo anual não projeta os meses seguintes.
 - Perguntas de esclarecimento da voz não guardam contexto: reenvie o comando completo.
 

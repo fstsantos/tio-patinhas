@@ -143,6 +143,10 @@ make integridade DOCKER=1
 - Pode repetir à vontade: compras já importadas aparecem como "já existe". A comparação
   é por titular, data, descrição, parcelas e valor — se você editar um desses campos
   depois, a próxima importação verá a compra como nova (confira a prévia).
+- Cobrança de recorrência de crédito (assinatura): a linha à vista de mesmo valor, com
+  data a até 5 dias da compra gerada pela recorrência, aparece como "já existe" com
+  `#id (recorrência de dd/mm)`. Se o valor mudou, entra como nova: cancele o lançamento
+  estimado daquele mês.
 - A linha "Parcelas desta fatura em <mês>" deve ser igual ao total da fatura menos o que
   foi ignorado.
 - O nome do estabelecimento vem colado à cidade ("Petshopsao Paulobra"); a limpeza

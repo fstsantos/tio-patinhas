@@ -8,12 +8,17 @@
 - Reimportação: uma linha que já tem compra ativa equivalente (titular, data,
   descrição, parcelas e valor) não é criada de novo. Editar a compra depois de
   importada desfaz essa equivalência.
+- Recorrências de crédito: a linha à vista que não tem compra equivalente casa com a
+  compra gerada por uma recorrência do titular, se o valor for igual e as datas
+  estiverem a até 5 dias uma da outra (a descrição não entra na comparação). Vale a de
+  data mais próxima, e cada compra cobre uma única linha.
 """
 
 from __future__ import annotations
 
 import tomllib
 from dataclasses import dataclass
+from datetime import timedelta
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
@@ -41,6 +46,8 @@ CENTAVO = Decimal("0.01")
 # O nome do estabelecimento vem truncado em 22 ou 23 caracteres conforme o formato
 # da linha; a comparação usa o prefixo comum de 22, sem espaços.
 _PREFIXO_DESCRICAO = 22
+# A cobrança de uma assinatura raramente cai no dia exato cadastrado na recorrência.
+TOLERANCIA_RECORRENCIA_DIAS = 5
 
 
 class Situacao(StrEnum):
@@ -147,6 +154,26 @@ def _equivale(existente: Lancamento, dados: DadosLancamento) -> bool:
     )
 
 
+def _da_recorrencia(livres: list[Lancamento], dados: DadosLancamento) -> Lancamento | None:
+    """Compra gerada por recorrência que corresponde à linha: à vista, mesmo valor e
+    data a até ``TOLERANCIA_RECORRENCIA_DIAS`` dias; a de data mais próxima."""
+    if dados.qtd_parcelas != 1:
+        return None
+
+    def distancia(x: Lancamento) -> int:
+        return abs((x.data_operacao - dados.data_operacao).days)
+
+    candidatas = [
+        x
+        for x in livres
+        if x.recorrencia_id is not None
+        and x.qtd_parcelas == 1
+        and x.valor_total == dados.valor
+        and distancia(x) <= TOLERANCIA_RECORRENCIA_DIAS
+    ]
+    return min(candidatas, key=lambda x: (distancia(x), x.id), default=None)
+
+
 def _dados(fatura: Fatura, linha: LinhaFatura) -> DadosLancamento:
     return DadosLancamento(
         tipo=TipoLancamento.CREDITO,
@@ -161,11 +188,19 @@ def _dados(fatura: Fatura, linha: LinhaFatura) -> DadosLancamento:
 async def planejar(s: AsyncSession, titular: Membro, fatura: Fatura, regras: Regras) -> Plano:
     """Classifica cada linha da fatura, sem gravar nada."""
     datas = {linha.data for linha in fatura.linhas}
-    q = select(Lancamento).where(
-        Lancamento.membro_id == titular.id,
-        Lancamento.tipo == TipoLancamento.CREDITO.value,
-        Lancamento.status == StatusLancamento.ATIVO.value,
-        Lancamento.data_operacao.in_(datas),
+    margem = timedelta(days=TOLERANCIA_RECORRENCIA_DIAS)
+    q = (
+        select(Lancamento)
+        .where(
+            Lancamento.membro_id == titular.id,
+            Lancamento.tipo == TipoLancamento.CREDITO.value,
+            Lancamento.status == StatusLancamento.ATIVO.value,
+            Lancamento.data_operacao.between(
+                min(datas, default=fatura.mes.primeiro_dia) - margem,
+                max(datas, default=fatura.mes.primeiro_dia) + margem,
+            ),
+        )
+        .order_by(Lancamento.id)
     )
     livres = list((await s.execute(q)).scalars())
     itens: list[ItemPlano] = []
@@ -189,6 +224,17 @@ async def planejar(s: AsyncSession, titular: Membro, fatura: Fatura, regras: Reg
             itens.append(ItemPlano(linha, Situacao.EXISTENTE, categoria, dados, f"#{igual.id}"))
         else:
             itens.append(ItemPlano(linha, Situacao.NOVA, categoria, dados))
+    # Só depois das equivalências exatas: o que sobrou pode ser cobrança de recorrência.
+    for i, item in enumerate(itens):
+        if item.situacao is not Situacao.NOVA or item.dados is None:
+            continue
+        gerada = _da_recorrencia(livres, item.dados)
+        if gerada is not None:
+            livres.remove(gerada)
+            itens[i] = ItemPlano(
+                item.linha, Situacao.EXISTENTE, item.categoria, item.dados,
+                f"#{gerada.id} (recorrência de {gerada.data_operacao:%d/%m})",
+            )  # fmt: skip
     return Plano(fatura, titular, tuple(itens))
 
 

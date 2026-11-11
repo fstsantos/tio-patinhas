@@ -10,7 +10,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from financas.db.models import Auditoria, Lancamento, Membro, Origem, TipoLancamento
+from financas.db.models import Auditoria, Lancamento, Membro, Origem, Parcela, TipoLancamento
 from financas.domain.calendario import Mes
 from financas.domain.erros import DataInvalida, OperacaoInvalida, SemPermissao
 from financas.services import lancamentos as svc_lanc
@@ -60,6 +60,30 @@ async def test_criar_gera_o_mes_corrente_com_data_futura_e_conta_no_saldo(
         # Auditoria do molde e do lançamento gerado.
         entidades = set((await s.execute(select(Auditoria.entidade))).scalars())
         assert entidades == {"recorrencia", "lancamento"}
+
+
+async def test_credito_gera_compra_a_vista_que_cai_no_mes_seguinte(
+    fabrica: async_sessionmaker[AsyncSession],
+) -> None:
+    async with fabrica() as s, s.begin():
+        ana = await f.membro(s)
+        rec = await svc.criar(
+            s, f.relogio(HOJE), ana, dados(TipoLancamento.CREDITO, "39.90", "Filmes", 31)
+        )
+        await svc.gerar(s, f.relogio(date(2026, 4, 1)))
+        lancs = await _lancamentos(s)
+        assert [(x.tipo, x.qtd_parcelas, x.data_operacao) for x in lancs] == [
+            ("CREDITO", 1, date(2026, 3, 31)),
+            ("CREDITO", 1, date(2026, 4, 30)),
+        ]
+        assert {x.recorrencia_id for x in lancs} == {rec.id}
+        parcelas = list((await s.execute(select(Parcela).order_by(Parcela.competencia))).scalars())
+        assert [(p.valor, p.competencia) for p in parcelas] == [
+            (Decimal("39.90"), date(2026, 4, 1)),
+            (Decimal("39.90"), date(2026, 5, 1)),
+        ]
+        # A compra de março não pesa no orçamento de março, só no de abril.
+        assert (await relatorios.resumo_mensal(s, Mes(2026, 3), HOJE)).orcamento.saldo == 0
 
 
 async def test_inicio_padrao_pula_para_o_mes_seguinte_se_o_dia_ja_passou(
@@ -168,8 +192,6 @@ async def test_permissoes_e_tipo(fabrica: async_sessionmaker[AsyncSession]) -> N
             await f.membro(s, "Bia"),
             await f.membro(s, "Adm", admin=True),
         )
-        with pytest.raises(OperacaoInvalida):
-            await svc.criar(s, clock, ana, dados(TipoLancamento.CREDITO))
         with pytest.raises(SemPermissao):
             await svc.criar(s, clock, ana, dados(), titular_id=bia.id)
         rec = await svc.criar(s, clock, adm, dados(), titular_id=bia.id)
@@ -179,6 +201,8 @@ async def test_permissoes_e_tipo(fabrica: async_sessionmaker[AsyncSession]) -> N
             await svc.editar(s, clock, ana, rec.id, dados())
         with pytest.raises(SemPermissao):
             await svc.definir_ativa(s, clock, ana, rec.id, False)
+        with pytest.raises(OperacaoInvalida):  # o tipo não muda na edição
+            await svc.editar(s, clock, bia, rec.id, dados(TipoLancamento.CREDITO))
         await svc.editar(s, clock, bia, rec.id, dados(valor="10.00"))
 
 

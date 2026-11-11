@@ -727,7 +727,7 @@ async def test_recorrencia_formulario_invalido_e_permissoes(
     cliente: httpx.AsyncClient, pessoas: dict[str, int], fabrica: async_sessionmaker[AsyncSession]
 ) -> None:
     await entrar(cliente, "bia")
-    r = await _recorrencia(cliente, tipo="CREDITO", valor="10.5", dia="", fim="x")
+    r = await _recorrencia(cliente, tipo="PIX", valor="10.5", dia="", fim="x")
     assert r.status_code == 422
     for trecho in ("Escolha o tipo.", "Informe o dia do mês", "formato mm/aaaa"):
         assert trecho in r.text
@@ -738,6 +738,11 @@ async def test_recorrencia_formulario_invalido_e_permissoes(
     async with fabrica() as s:
         rec = (await s.execute(select(Recorrencia))).scalar_one()
     assert rec.membro_id == pessoas["bia"]
+    # Compra no crédito: aparece na lista com a etiqueta própria.
+    r = await _recorrencia(cliente, tipo="CREDITO", valor="39,90", descricao="Filmes", dia="12")
+    assert r.status_code == 303
+    r = await cliente.get("/recorrentes")
+    assert '<span class="etiqueta credito">Crédito</span>' in r.text
 
     cliente.cookies.clear()
     await entrar(cliente, "ana")

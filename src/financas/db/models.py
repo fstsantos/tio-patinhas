@@ -238,11 +238,11 @@ class Lancamento(TimestampsMixin, Base):
 
 
 class Recorrencia(TimestampsMixin, Base):
-    """Molde de uma receita ou despesa mensal; gera lançamentos comuns, um por mês."""
+    """Molde de receita, despesa ou compra no crédito mensal; gera um lançamento por mês."""
 
     __tablename__ = "recorrencias"
     __table_args__ = (
-        CheckConstraint("tipo IN ('RECEITA', 'DEBITO')", name="tipo"),
+        CheckConstraint("tipo IN ('RECEITA', 'DEBITO', 'CREDITO')", name="tipo"),
         CheckConstraint("valor > 0 AND valor <= 1000000", name="valor"),
         CheckConstraint("length(descricao) BETWEEN 1 AND 120", name="descricao_tamanho"),
         CheckConstraint("dia BETWEEN 1 AND 31", name="dia"),

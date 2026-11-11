@@ -29,11 +29,17 @@ def test_chats_permitidos_por_virgula(monkeypatch: pytest.MonkeyPatch) -> None:
     assert Settings(_env_file=None).telegram_chats_permitidos == [-1001234, 42]  # type: ignore[call-arg]
 
 
+# Segredos fictícios montados em pedaços: escritos por extenso, os scanners de
+# segredo (GitHub etc.) os confundem com credenciais reais.
+_TOKEN_TELEGRAM_FICTICIO = ":".join(["123456789", "AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw0"])
+_CHAVE_ANTHROPIC_FICTICIA = "-".join(["sk", "ant", "abcdefghijklmnopqrstuv"])
+
+
 @pytest.mark.parametrize(
     ("texto", "proibido"),
     [
-        ("token 123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw0 enviado", "AAHdqTcv"),
-        ("chave sk-ant-abcdefghijklmnopqrstuv", "abcdefghijk"),
+        (f"token {_TOKEN_TELEGRAM_FICTICIO} enviado", "AAHdqTcv"),
+        (f"chave {_CHAVE_ANTHROPIC_FICTICIA}", "abcdefghijk"),
         ("senha=minhasenha123", "minhasenha123"),
         ("postgresql+psycopg://user:segredo@db:5432/x", "segredo"),
     ],

@@ -55,7 +55,10 @@
         <span class="detalhe" id="compras-credito" role="tooltip">
           {% for c in resumo.compras_credito %}<span class="linha"><span>{{ c.data.strftime('%d/%m') }}</span><span>{{ c.descricao }}</span><span class="num">{{ c.valor | brl }}</span></span>{% endfor %}
         </span></span> <small>em {{ resumo.compras_credito | length }} compra(s)</small></p>
-      <ul class="lista-simples">{% for m, v in resumo.impacto_futuro[:6] %}<li>{{ m.abreviado }} <span>{{ v | brl }}</span></li>{% endfor %}</ul>
+      <ul class="lista-simples">{% for m, v in resumo.impacto_futuro[:6] %}<li>{{ m.abreviado }} <span class="com-detalhe a-direita" tabindex="0" aria-describedby="parcelas-{{ m.ano }}-{{ m.mes }}">{{ v | brl }}
+        <span class="detalhe" id="parcelas-{{ m.ano }}-{{ m.mes }}" role="tooltip">
+          {% for p in resumo.parcelas_futuras[m] %}<span class="linha"><span>{{ p.data_compra.strftime('%d/%m') }}</span><span>{{ p.descricao }} <small class="sutil">{{ p.numero }}/{{ p.total_parcelas }}</small></span><span class="num">{{ p.valor | brl }}</span></span>{% endfor %}
+        </span></span></li>{% endfor %}</ul>
     {% else %}<p class="vazio">Nenhuma compra no crédito neste mês.</p>{% endif %}
   </section>
 </div>

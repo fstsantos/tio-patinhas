@@ -76,6 +76,8 @@ class ResumoMensal:
     impacto_futuro: list[tuple[Mes, Decimal]]
     por_categoria: list[Grupo]
     por_descricao: list[Grupo]
+    # Parcelas que compõem cada mês de ``impacto_futuro``.
+    parcelas_futuras: dict[Mes, list[ItemParcela]] = field(default_factory=dict)
 
     @property
     def total_credito_contratado(self) -> Decimal:
@@ -227,21 +229,22 @@ async def resumo_mensal(
     qp = qp.order_by(Lancamento.data_operacao, Lancamento.id)
     parcelas = [_item_parcela(*row) for row in (await s.execute(qp)).tuples()]
 
-    impacto: list[tuple[Mes, Decimal]] = []
+    futuras: dict[Mes, list[ItemParcela]] = {}
     if compras:
         qi = (
-            select(Parcela.competencia, func.sum(Parcela.valor))
+            _consulta_parcelas()
             .where(
                 Parcela.lancamento_id.in_([c.id for c in compras]),
-                Parcela.status == StatusParcela.PENDENTE.value,
                 # Parcela já no próprio mês (mês da 1ª parcela informado) entra no
                 # saldo como compromisso do mês; aqui ficam só os meses seguintes.
                 Parcela.competencia > mes.primeiro_dia,
             )
-            .group_by(Parcela.competencia)
-            .order_by(Parcela.competencia)
+            .order_by(Parcela.competencia, Lancamento.data_operacao, Lancamento.id)
         )
-        impacto = [(Mes.de_data(c), Decimal(v)) for c, v in (await s.execute(qi)).tuples()]
+        for row in (await s.execute(qi)).tuples():
+            parcela = _item_parcela(*row)
+            futuras.setdefault(parcela.competencia, []).append(parcela)
+    impacto = [(m, sum((p.valor for p in ps), ZERO)) for m, ps in futuras.items()]
 
     orcamento = calcular_orcamento(
         mes,
@@ -261,6 +264,7 @@ async def resumo_mensal(
         parcelas=parcelas,
         compras_credito=compras,
         impacto_futuro=impacto,
+        parcelas_futuras=futuras,
         por_categoria=(
             _agrupar([(c or SEM_CATEGORIA, v) for c, _, v in despesas]) if tem_categoria else []
         ),

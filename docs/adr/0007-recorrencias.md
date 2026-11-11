@@ -14,7 +14,11 @@
   - Só o mês corrente é gerado. Gerar vários meses à frente projetaria o ano no
     resumo anual, mas encheria a lista de lançamentos futuros e obrigaria a corrigir
     os já gerados a cada mudança de valor.
-  - Só receita e débito. Compras no cartão chegam pela fatura importada e duplicariam.
+  - Receita, débito e, desde 2026-11-11 (migração `0004`), crédito. No começo o
+    crédito ficou de fora, porque as compras no cartão chegam pela fatura importada e
+    duplicariam. Passou a valer com a importação reconhecendo a compra gerada pela
+    recorrência: linha à vista, mesmo titular, valor igual e data a até 5 dias. A
+    compra é sempre à vista e cai no mês seguinte ao da compra.
   - Geração idempotente: `recorrencias.gerada_ate` guarda o último mês tratado, a linha
     é travada durante a geração e o banco tem único em (`recorrencia_id`,
     `recorrencia_mes`). Quem dispara é o processo web (ao subir e a cada hora) e o
@@ -24,4 +28,6 @@
   avisos no bot — muito mais código para o mesmo resultado no orçamento.
 - **Consequências:** um salário do dia 30 entra no saldo desde o dia 1. Valor variável
   (luz, água) é lançado pela estimativa e corrigido no lançamento do mês. Mudanças no
-  molde valem só para os meses ainda não gerados. Uma migração aditiva (`0003`).
+  molde valem só para os meses ainda não gerados. Uma migração aditiva (`0003`). No
+  crédito, valor diferente na fatura (reajuste, câmbio) não casa: a linha entra como
+  nova e o lançamento estimado do mês precisa ser cancelado à mão.

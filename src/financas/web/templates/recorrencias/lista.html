@@ -5,7 +5,7 @@
   <thead><tr><th>Descrição</th><th>Tipo</th><th>Dia</th><th>{% if encerradas %}Último mês{% else %}Próximo lançamento{% endif %}</th><th>Titular</th><th class="num">Valor</th><th></th></tr></thead>
   <tbody>{% for r in lista %}<tr>
     <td>{{ r.descricao }}{% if r.categoria_id %}<br><small class="sutil">{{ cats.get(r.categoria_id, '') }}</small>{% endif %}</td>
-    <td><span class="etiqueta {{ 'receita' if r.tipo == 'RECEITA' else 'debito' }}">{{ 'Receita' if r.tipo == 'RECEITA' else 'Despesa' }}</span></td>
+    <td><span class="etiqueta {{ r.tipo | lower }}">{{ rotulos[r.tipo] }}</span></td>
     <td>{{ r.dia }}</td>
     <td>{% if encerradas %}{{ r.fim | mes if r.fim else '—' }}{% elif proximas[r.id] %}{{ proximas[r.id] | data }}{% else %}<span class="sutil">terminou em {{ r.fim | mes }}</span>{% endif %}</td>
     <td>{{ nomes.get(r.membro_id, '—') }}</td>
@@ -25,7 +25,7 @@
   <h1>Recorrentes</h1>
   <a class="botao primario" href="/recorrentes/nova">Nova recorrência</a>
 </div>
-<p class="sutil">Receitas e despesas que se repetem todo mês (salário, aluguel, escola). O lançamento de cada mês é criado sozinho quando o mês começa, com a data do dia combinado, e já conta no saldo. Compras no cartão ficam de fora: elas chegam pela fatura.</p>
+<p class="sutil">Receitas, despesas e compras no cartão que se repetem todo mês (salário, aluguel, assinaturas). O lançamento de cada mês é criado sozinho quando o mês começa, com a data do dia combinado. Receitas e débitos já contam no saldo do mês; a compra no crédito é à vista e cai no mês seguinte. Ao importar a fatura, a cobrança de mesmo valor e data próxima é reconhecida e não entra duas vezes.</p>
 <section class="cartao">
   <h2>Ativas</h2>
   {% if ativas %}{{ tabela(ativas) }}{% else %}<p class="vazio">Nenhuma recorrência ativa.</p>{% endif %}

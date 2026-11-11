@@ -57,13 +57,23 @@ Orçamento diário = Saldo ÷ dias restantes (se Saldo > 0); 0 caso contrário
 
 ## Recorrências (`domain/recorrencia.py`, `services/recorrencias.py`)
 
-Receitas e despesas que se repetem todo mês (salário, aluguel, escola). Ver ADR 0007.
+Receitas, despesas e compras no crédito que se repetem todo mês (salário, aluguel,
+assinaturas). Ver ADR 0007.
 
-- Só receita ou débito. Compras no cartão ficam de fora: chegam pela fatura importada.
+- Receita, débito ou crédito. A de crédito gera uma compra à vista (1 parcela), que
+  cai no mês seguinte ao da compra, como qualquer compra sem mês da 1ª parcela
+  informado; para outro mês, edite o lançamento gerado.
+- Fatura importada: a linha à vista sem compra equivalente casa com a compra gerada
+  por uma recorrência do mesmo titular, se o valor for igual e as datas estiverem a
+  até 5 dias uma da outra (a descrição não é comparada). Vale a de data mais próxima;
+  cada compra cobre uma única linha, e a prévia mostra `#id (recorrência de dd/mm)`.
+  Se o valor da fatura for outro, a linha entra como nova: cancele o lançamento
+  estimado daquele mês.
 - Dia fixo do mês; em mês mais curto, o último dia (31 → 30/04, 28 ou 29/02).
 - O lançamento de cada mês é criado **quando o mês começa**, com a data do dia
   combinado. É um lançamento comum (origem `RECORRENCIA`) e, pela regra das datas
-  futuras, já conta no saldo e no orçamento do mês desde o dia 1.
+  futuras, já conta no saldo e no orçamento do mês desde o dia 1 (no crédito, no
+  orçamento do mês em que a parcela cai).
 - Só o mês corrente é gerado; meses futuros não aparecem em relatório nenhum.
 - Um lançamento por recorrência e mês (único no banco): gerar de novo não duplica, e
   os meses em que o sistema ficou parado são recuperados na execução seguinte.

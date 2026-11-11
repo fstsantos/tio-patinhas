@@ -18,12 +18,12 @@
       {% if form.erros.tipo %}<p class="erro-campo">{{ form.erros.tipo }}</p>{% endif %}
     </fieldset>
     <label>Descrição
-      <input name="descricao" maxlength="120" value="{{ v.descricao }}" required placeholder="Aluguel, escola, salário…">
+      <input name="descricao" maxlength="120" value="{{ v.descricao }}" required placeholder="Aluguel, escola, salário, assinatura…">
       {% if form.erros.descricao %}<span class="erro-campo">{{ form.erros.descricao }}</span>{% endif %}
     </label>
     <label>Valor (R$)
       <input name="valor" inputmode="decimal" value="{{ v.valor }}" placeholder="10,50" required aria-invalid="{{ 'true' if form.erros.valor else 'false' }}" aria-describedby="ajuda-valor">
-      <small id="ajuda-valor" class="sutil">Se o valor muda a cada mês (luz, água), informe uma estimativa e corrija o lançamento do mês quando a conta chegar.</small>
+      <small id="ajuda-valor" class="sutil">Se o valor muda a cada mês (luz, água), informe uma estimativa e corrija o lançamento do mês quando a conta chegar. No crédito, a fatura importada só reconhece a cobrança se o valor for igual.</small>
       {% if form.erros.valor %}<span class="erro-campo">{{ form.erros.valor }}</span>{% endif %}
     </label>
     <label>Dia do mês

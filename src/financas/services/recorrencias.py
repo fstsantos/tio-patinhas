@@ -1,9 +1,13 @@
-"""Recorrências mensais: moldes de receitas e despesas que geram lançamentos comuns.
+"""Recorrências mensais: moldes de receitas, despesas e compras no crédito.
 
 Cada recorrência gera um lançamento por mês (origem ``RECORRENCIA``), criado logo que
 o mês começa, com a data do dia combinado — mesmo que ele ainda não tenha chegado: um
 lançamento com data futura já conta no saldo e no orçamento do mês. Depois de gerado,
 é um lançamento como outro qualquer: pode ser editado ou cancelado sem afetar o molde.
+
+A recorrência de crédito gera uma compra à vista (1 parcela), que cai no mês seguinte
+ao da compra, como qualquer compra sem mês da 1ª parcela informado. A importação de
+fatura reconhece essas compras (ver ``services/importacao.py``).
 """
 
 from __future__ import annotations
@@ -45,7 +49,7 @@ from financas.services.lancamentos import DadosLancamento
 log = logging.getLogger(__name__)
 
 ENTIDADE = "recorrencia"
-TIPOS = (TipoLancamento.RECEITA, TipoLancamento.DEBITO)
+TIPOS = (TipoLancamento.RECEITA, TipoLancamento.DEBITO, TipoLancamento.CREDITO)
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,10 +111,7 @@ def _foto(rec: Recorrencia) -> dict[str, Any]:
 
 def _validar(dados: DadosRecorrencia) -> tuple[Decimal, str]:
     if dados.tipo not in TIPOS:
-        raise OperacaoInvalida(
-            "Recorrências são só de receita ou débito.",
-            sugestao="Compras no cartão chegam pela fatura.",
-        )
+        raise OperacaoInvalida("Tipo de recorrência inválido.")
     validar_dia(dados.dia)
     return validar_limites(dados.valor), validar_descricao(dados.descricao)
 
@@ -351,6 +352,7 @@ async def _gerar_uma(
                 valor=rec.valor,
                 descricao=rec.descricao,
                 data_operacao=data_no_mes(mes, rec.dia),
+                qtd_parcelas=1 if rec.tipo == TipoLancamento.CREDITO.value else None,
                 categoria_id=categoria_id,
             )
             r = await svc_lancamentos.criar(

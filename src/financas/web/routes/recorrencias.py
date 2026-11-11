@@ -1,4 +1,4 @@
-"""Recorrências mensais (receitas e despesas). Permissões validadas no serviço."""
+"""Recorrências mensais (receitas, despesas e crédito). Permissões validadas no serviço."""
 
 from __future__ import annotations
 
@@ -23,8 +23,14 @@ router = APIRouter(prefix="/recorrentes")
 
 TIPOS = [
     (TipoLancamento.DEBITO.value, "Despesa (débito)"),
+    (TipoLancamento.CREDITO.value, "Compra no crédito"),
     (TipoLancamento.RECEITA.value, "Receita"),
 ]
+ROTULOS = {
+    TipoLancamento.DEBITO.value: "Despesa",
+    TipoLancamento.CREDITO.value: "Crédito",
+    TipoLancamento.RECEITA.value: "Receita",
+}
 CAMPOS = ("tipo", "valor", "descricao", "dia", "inicio", "fim", "categoria", "titular")
 
 
@@ -92,6 +98,7 @@ async def listar(request: Request, usuario: Usuario = Depends(usuario_atual)) ->
         nomes=nomes,
         cats=cats,
         proximas={r.id: svc.proxima_data(r) for r in todas},
+        rotulos=ROTULOS,
         pode=lambda r: svc.pode_alterar(usuario.membro, r),
     )
 

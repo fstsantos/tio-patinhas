@@ -32,12 +32,12 @@
       {% if form.erros.dia %}<span class="erro-campo">{{ form.erros.dia }}</span>{% endif %}
     </label>
     <label>Primeiro mês{% if not rec %} (opcional){% endif %}
-      <input name="inicio" type="month" value="{{ v.inicio }}" placeholder="aaaa-mm" {% if rec %}disabled{% else %}min="{{ hoje.strftime('%Y-%m') }}" aria-describedby="ajuda-inicio"{% endif %}>
+      <input name="inicio" type="text" inputmode="numeric" maxlength="7" size="8" pattern="\d{1,2}/\d{4}" placeholder="mm/aaaa" value="{{ v.inicio }}" {% if rec %}disabled{% else %}aria-describedby="ajuda-inicio"{% endif %}>
       {% if not rec %}<small id="ajuda-inicio" class="sutil">Em branco: este mês, se o dia ainda não passou; senão, o mês que vem (para não repetir o que você já lançou).</small>{% endif %}
       {% if form.erros.inicio %}<span class="erro-campo">{{ form.erros.inicio }}</span>{% endif %}
     </label>
     <label>Último mês (opcional)
-      <input name="fim" type="month" value="{{ v.fim }}" placeholder="aaaa-mm" aria-describedby="ajuda-fim">
+      <input name="fim" type="text" inputmode="numeric" maxlength="7" size="8" pattern="\d{1,2}/\d{4}" placeholder="mm/aaaa" value="{{ v.fim }}" aria-describedby="ajuda-fim">
       <small id="ajuda-fim" class="sutil">Em branco: sem prazo para acabar.</small>
       {% if form.erros.fim %}<span class="erro-campo">{{ form.erros.fim }}</span>{% endif %}
     </label>

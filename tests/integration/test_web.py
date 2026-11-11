@@ -529,7 +529,7 @@ async def test_credito_com_mes_da_primeira_parcela(
         tipo="CREDITO",
         valor="300,00",
         parcelas="3",
-        primeira_competencia="2026-03",
+        primeira_competencia="03/2026",
         data="2026-03-02",
     )
     r = await cliente.get(f"/lancamentos/{lid}")
@@ -543,7 +543,7 @@ async def test_credito_com_mes_da_primeira_parcela(
         ]
     # edição exibe o mês e, sem mexer nele, não reparcela
     r = await cliente.get(f"/lancamentos/{lid}/editar")
-    assert 'value="2026-03"' in r.text
+    assert 'value="03/2026"' in r.text
     token = _csrf(r.text)
     r = await cliente.post(
         f"/lancamentos/{lid}/editar",
@@ -551,7 +551,7 @@ async def test_credito_com_mes_da_primeira_parcela(
             "csrf_token": token,
             "valor": "300,00",
             "parcelas": "3",
-            "primeira_competencia": "2026-03",
+            "primeira_competencia": "03/2026",
             "descricao": "loja",
             "data": "2026-03-02",
             "revisao": "1",
@@ -563,7 +563,7 @@ async def test_credito_com_mes_da_primeira_parcela(
 
 
 @pytest.mark.parametrize(
-    ("mes", "mensagem"), [("2026-07", "1ª parcela inválido"), ("março", "aaaa-mm")]
+    ("mes", "mensagem"), [("07/2026", "1ª parcela inválido"), ("março", "mm/aaaa")]
 )
 async def test_mes_da_primeira_parcela_invalido(
     cliente: httpx.AsyncClient, pessoas: dict[str, int], mes: str, mensagem: str
@@ -680,12 +680,16 @@ async def test_recorrencia_criar_editar_encerrar(
 
     r = await cliente.get("/recorrentes")
     assert "Aluguel" in r.text and "25/04/2026" in r.text  # próximo lançamento
+    assert 'name="mes"' in (await cliente.get("/?mes=04/2026")).text
+    for consulta in ("04/2026", "2026-04"):  # o formato antigo segue valendo em links
+        painel = await cliente.get(f"/?mes={consulta}")
+        assert "Abril de 2026" in painel.text and 'value="04/2026"' in painel.text
     r = await cliente.get(f"/lancamentos/{lanc.id}")
     assert "Recorrência" in r.text and "vale só para este mês" in r.text
     assert "R$ 1.500,00" in (await cliente.get("/")).text  # já conta no mês
 
     pagina = await cliente.get(f"/recorrentes/{rid}/editar")
-    assert 'value="1.500,00"' in pagina.text
+    assert 'value="1.500,00"' in pagina.text and 'value="03/2026"' in pagina.text
     r = await cliente.post(
         f"/recorrentes/{rid}/editar",
         data={
@@ -693,7 +697,7 @@ async def test_recorrencia_criar_editar_encerrar(
             "valor": "1.600,00",
             "descricao": "Aluguel",
             "dia": "25",
-            "fim": "2026-12",
+            "fim": "12/2026",
         },
     )
     assert r.status_code == 303, r.text
@@ -725,10 +729,10 @@ async def test_recorrencia_formulario_invalido_e_permissoes(
     await entrar(cliente, "bia")
     r = await _recorrencia(cliente, tipo="CREDITO", valor="10.5", dia="", fim="x")
     assert r.status_code == 422
-    for trecho in ("Escolha o tipo.", "Informe o dia do mês", "formato aaaa-mm"):
+    for trecho in ("Escolha o tipo.", "Informe o dia do mês", "formato mm/aaaa"):
         assert trecho in r.text
     assert (await _recorrencia(cliente, dia="40")).status_code == 422
-    assert (await _recorrencia(cliente, inicio="2026-02")).status_code == 422
+    assert (await _recorrencia(cliente, inicio="02/2026")).status_code == 422
     # Membro não escolhe titular: o campo é ignorado.
     assert (await _recorrencia(cliente, titular=str(pessoas["ana"]))).status_code == 303
     async with fabrica() as s:

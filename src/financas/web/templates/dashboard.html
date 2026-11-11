@@ -6,7 +6,7 @@
 <div class="titulo-pagina">
   <h1>{{ o.mes.por_extenso | capitalize }}</h1>
   <form class="filtros" method="get" action="/">
-    <label>Mês <input type="month" name="mes" value="{{ '%04d-%02d' % (mes.ano, mes.mes) }}"></label>
+    <label>Mês <input name="mes" type="text" inputmode="numeric" maxlength="7" size="8" pattern="\d{1,2}/\d{4}" placeholder="mm/aaaa" value="{{ mes }}"></label>
     <label>Membro
       <select name="membro">
         <option value="">Família toda</option>

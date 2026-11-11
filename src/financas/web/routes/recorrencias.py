@@ -10,14 +10,13 @@ from starlette.datastructures import FormData
 
 from financas.db.models import Membro, Recorrencia, TipoLancamento
 from financas.db.session import transacao
-from financas.domain.calendario import Mes
 from financas.domain.dinheiro import formatar_brl, parse_valor
 from financas.domain.erros import ErroDominio, NaoEncontrado, SemPermissao
 from financas.services import categorias, membros
 from financas.services import recorrencias as svc
 from financas.web.app import estado, formulario, redirecionar, render, usuario_atual
 from financas.web.auth import Usuario
-from financas.web.routes.dashboard import inteiro_ou_none
+from financas.web.routes.dashboard import inteiro_ou_none, mes_do_campo
 from financas.web.routes.lancamentos import Formulario
 
 router = APIRouter(prefix="/recorrentes")
@@ -29,17 +28,8 @@ TIPOS = [
 CAMPOS = ("tipo", "valor", "descricao", "dia", "inicio", "fim", "categoria", "titular")
 
 
-def _mes(valor: str) -> Mes | None:
-    """``aaaa-mm`` (campo ``type=month``) → mês; inválido → None."""
-    try:
-        ano, mes = valor.split("-")
-        return Mes(int(ano), int(mes))
-    except (ValueError, ErroDominio):
-        return None
-
-
 def _mes_campo(d: Any) -> str:
-    return d.strftime("%Y-%m") if d else ""
+    return d.strftime("%m/%Y") if d else ""
 
 
 def _ler(
@@ -64,13 +54,13 @@ def _ler(
         f.erros["dia"] = "Informe o dia do mês, de 1 a 31."
     inicio = fim = None
     if v["inicio"]:
-        inicio = _mes(v["inicio"])
+        inicio = mes_do_campo(v["inicio"])
         if inicio is None:
-            f.erros["inicio"] = "Informe o mês no formato aaaa-mm."
+            f.erros["inicio"] = "Informe o mês no formato mm/aaaa."
     if v["fim"]:
-        fim = _mes(v["fim"])
+        fim = mes_do_campo(v["fim"])
         if fim is None:
-            f.erros["fim"] = "Informe o mês no formato aaaa-mm."
+            f.erros["fim"] = "Informe o mês no formato mm/aaaa."
     if f.erros or tipo is None or valor is None or dia is None:
         return f, None, None
     dados = svc.DadosRecorrencia(

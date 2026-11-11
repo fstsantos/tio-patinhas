@@ -52,9 +52,9 @@
     <p class="sutil">Informativo: o valor total não entra no saldo, só as parcelas de cada mês. Abaixo, o impacto nos meses seguintes; parcela que já cai neste mês está em "Parcelas do mês".</p>
     {% if resumo.compras_credito %}
       <p class="destaque"><span class="com-detalhe" tabindex="0" aria-describedby="compras-credito">{{ resumo.total_credito_contratado | brl }}
-        <span class="detalhe" id="compras-credito" role="tooltip"><table class="tabela compacta"><tbody>
-          {% for c in resumo.compras_credito %}<tr><td>{{ c.data.strftime('%d/%m') }}</td><td>{{ c.descricao }}</td><td class="num">{{ c.valor | brl }}</td></tr>{% endfor %}
-        </tbody></table></span></span> <small>em {{ resumo.compras_credito | length }} compra(s)</small></p>
+        <span class="detalhe" id="compras-credito" role="tooltip">
+          {% for c in resumo.compras_credito %}<span class="linha"><span>{{ c.data.strftime('%d/%m') }}</span><span>{{ c.descricao }}</span><span class="num">{{ c.valor | brl }}</span></span>{% endfor %}
+        </span></span> <small>em {{ resumo.compras_credito | length }} compra(s)</small></p>
       <ul class="lista-simples">{% for m, v in resumo.impacto_futuro[:6] %}<li>{{ m.abreviado }} <span>{{ v | brl }}</span></li>{% endfor %}</ul>
     {% else %}<p class="vazio">Nenhuma compra no crédito neste mês.</p>{% endif %}
   </section>

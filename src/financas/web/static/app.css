@@ -80,6 +80,10 @@ h1 { font-size: 1.5rem; margin: 0 0 1rem; } h2 { font-size: 1.05rem; margin: 0 0
 .indicador.previsto { border-left-color: var(--previsto); } .indicador.saldo { border-left-color: var(--saldo); }
 .indicador.negativo { border-left-color: var(--realizado); background: var(--fundo-perigo); } .indicador.negativo strong { color: var(--realizado); }
 .informativo { border-style: dashed; } .previsto-borda { border-top: 4px solid var(--previsto); }
+.com-detalhe { position: relative; cursor: help; border-bottom: 1px dotted var(--sutil); }
+.com-detalhe .detalhe { display: none; position: absolute; top: 100%; left: 0; z-index: 20; width: max-content; max-width: min(30rem, calc(100vw - 3rem)); max-height: 60vh; overflow-y: auto; padding: .4rem .5rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); font-size: .88rem; font-weight: 400; cursor: default; }
+.com-detalhe:hover .detalhe, .com-detalhe:focus .detalhe, .com-detalhe:focus-within .detalhe { display: block; }
+.com-detalhe .detalhe tr:last-child td { border-bottom: 0; }
 .cancelado-borda { border-top: 4px solid var(--cancelado); } .substituido-borda { border-top: 4px solid var(--substituido); }
 
 .grafico { position: relative; height: 260px; } .grafico.baixo { height: 200px; }

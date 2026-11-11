@@ -508,9 +508,12 @@ async def test_numeros_identicos_bot_e_web(
         assert esperado in texto_bot, esperado
         assert esperado in html, esperado
     # O total das compras no crédito do mês detalha cada compra ao passar o mouse.
-    detalhe = html.split('id="compras-credito"')[1].split("</table>")[0]
-    assert "<td>20/03</td><td>tv</td>" in detalhe and "R$ 1.000,00" in detalhe
+    detalhe = html.split('id="compras-credito"')[1].split("<small>")[0]
+    assert "<span>20/03</span><span>tv</span>" in detalhe and "R$ 1.000,00" in detalhe
     assert "geladeira" not in detalhe  # comprada em fevereiro
+    # Dentro de <p> só cabem elementos de linha: tabela ou div fechariam o parágrafo
+    # no navegador e a lista apareceria sempre aberta.
+    assert "<table" not in detalhe and "<div" not in detalhe and "</p>" not in detalhe
     # cancelamento pela web reflete no bot
     async with fabrica() as s:
         geladeira = await s.scalar(select(Lancamento.id).where(Lancamento.descricao == "geladeira"))

@@ -22,15 +22,11 @@ from financas.web.routes.lancamentos import Formulario
 router = APIRouter(prefix="/recorrentes")
 
 TIPOS = [
-    (TipoLancamento.DEBITO.value, "Despesa (débito)"),
-    (TipoLancamento.CREDITO.value, "Compra no crédito"),
+    (TipoLancamento.DEBITO.value, "Débito"),
+    (TipoLancamento.CREDITO.value, "Crédito"),
     (TipoLancamento.RECEITA.value, "Receita"),
 ]
-ROTULOS = {
-    TipoLancamento.DEBITO.value: "Despesa",
-    TipoLancamento.CREDITO.value: "Crédito",
-    TipoLancamento.RECEITA.value: "Receita",
-}
+ROTULOS = dict(TIPOS)
 CAMPOS = ("tipo", "valor", "descricao", "dia", "inicio", "fim", "categoria", "titular")
 
 

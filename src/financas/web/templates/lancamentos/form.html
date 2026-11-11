@@ -27,7 +27,7 @@
       {% if form.erros.parcelas %}<span class="erro-campo">{{ form.erros.parcelas }}</span>{% endif %}
     </label>
     <label data-parcelas {% if v.tipo != 'CREDITO' %}hidden{% endif %}>Mês da 1ª parcela (opcional)
-      <input name="primeira_competencia" type="month" value="{{ v.primeira_competencia }}" placeholder="aaaa-mm" aria-describedby="ajuda-primeira" aria-invalid="{{ 'true' if form.erros.primeira_competencia else 'false' }}">
+      <input name="primeira_competencia" type="text" inputmode="numeric" maxlength="7" size="8" pattern="\d{1,2}/\d{4}" placeholder="mm/aaaa" value="{{ v.primeira_competencia }}" aria-describedby="ajuda-primeira" aria-invalid="{{ 'true' if form.erros.primeira_competencia else 'false' }}">
       <small id="ajuda-primeira" class="sutil">Em branco: mês seguinte ao da compra. Use quando a fatura do cartão disser outro mês (do mês da compra até dois meses depois).</small>
       {% if form.erros.primeira_competencia %}<span class="erro-campo">{{ form.erros.primeira_competencia }}</span>{% endif %}
     </label>

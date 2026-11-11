@@ -23,17 +23,23 @@ router = APIRouter()
 ANO_MIN, ANO_MAX = 2000, 2100
 
 
-def mes_da_query(valor: str | None, padrao: Mes) -> Mes:
-    """Aceita ``AAAA-MM`` (input type=month) ou ``MM/AAAA``."""
-    if not valor:
-        return padrao
+def mes_do_campo(valor: str) -> Mes | None:
+    """Mês digitado como ``mm/aaaa``; inválido → None.
+
+    ``aaaa-mm`` continua aceito, para links antigos do dashboard.
+    """
     try:
         if "-" in valor:
             ano, mes_txt = valor.split("-", 1)
-            mes = Mes(int(ano), int(mes_txt))
-        else:
-            mes = Mes.parse(valor)
+            return Mes(int(ano), int(mes_txt))
+        return Mes.parse(valor)
     except (ValueError, ErroDominio):
+        return None
+
+
+def mes_da_query(valor: str | None, padrao: Mes) -> Mes:
+    mes = mes_do_campo(valor) if valor else None
+    if mes is None:
         return padrao
     # Fora do intervalo aceito (o mesmo do "resumo ano" do bot), vale o padrão.
     return mes if ANO_MIN <= mes.ano <= ANO_MAX else padrao

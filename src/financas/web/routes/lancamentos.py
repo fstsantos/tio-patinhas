@@ -21,7 +21,7 @@ from financas.services import auditoria, autorizacao, categorias, membros
 from financas.services import lancamentos as svc
 from financas.web.app import estado, formulario, redirecionar, render, usuario_atual
 from financas.web.auth import Usuario
-from financas.web.routes.dashboard import inteiro_ou_none
+from financas.web.routes.dashboard import inteiro_ou_none, mes_do_campo
 
 router = APIRouter(prefix="/lancamentos")
 
@@ -43,11 +43,9 @@ def _data(valor: str | None) -> date | None:
 
 
 def _mes(valor: str) -> date | None:
-    """``aaaa-mm`` (campo ``type=month``) → primeiro dia do mês; inválido → None."""
-    try:
-        return date.fromisoformat(f"{valor}-01")
-    except ValueError:
-        return None
+    """``mm/aaaa`` → primeiro dia do mês; inválido → None."""
+    mes = mes_do_campo(valor)
+    return mes.primeiro_dia if mes else None
 
 
 def _valor_opcional(valor: str | None) -> Decimal | None:
@@ -196,7 +194,7 @@ def _ler_formulario(
         if v["primeira_competencia"]:
             primeira_competencia = _mes(v["primeira_competencia"])
             if primeira_competencia is None:
-                f.erros["primeira_competencia"] = "Informe o mês no formato aaaa-mm."
+                f.erros["primeira_competencia"] = "Informe o mês no formato mm/aaaa."
     data_op = _data(v["data"])
     if data_op is None:
         f.erros["data"] = "Informe a data."
@@ -326,7 +324,7 @@ async def editar_form(
         "tipo": lanc.tipo, "valor": formatar_brl(lanc.valor_total).removeprefix("R$ "),
         "parcelas": str(lanc.qtd_parcelas or ""), "descricao": lanc.descricao,
         "primeira_competencia": (
-            lanc.primeira_competencia.strftime("%Y-%m") if lanc.primeira_competencia else ""
+            lanc.primeira_competencia.strftime("%m/%Y") if lanc.primeira_competencia else ""
         ),
         "data": lanc.data_operacao.isoformat(), "categoria": str(lanc.categoria_id or ""),
         "titular": str(lanc.membro_id), "revisao": str(lanc.revisao),

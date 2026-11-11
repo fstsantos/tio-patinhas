@@ -94,6 +94,7 @@ class Origem(StrEnum):
     TELEGRAM_VOZ = "TELEGRAM_VOZ"
     WEB = "WEB"
     CLI = "CLI"
+    RECORRENCIA = "RECORRENCIA"
 
 
 class StatusParcela(StrEnum):
@@ -185,6 +186,13 @@ class Lancamento(TimestampsMixin, Base):
         CheckConstraint(
             "(status = 'CANCELADO') = (cancelado_em IS NOT NULL)", name="dados_cancelamento"
         ),
+        CheckConstraint(
+            "(recorrencia_id IS NULL) = (recorrencia_mes IS NULL)", name="recorrencia_mes"
+        ),
+        # Um lançamento por recorrência e mês, mesmo cancelado: o mês não é gerado de novo.
+        UniqueConstraint(
+            "recorrencia_id", "recorrencia_mes", name="uq_lancamentos_recorrencia_mes"
+        ),
         Index("ix_lancamentos_data_operacao", "data_operacao"),
         Index("ix_lancamentos_membro_id", "membro_id"),
         Index("ix_lancamentos_criado_por_created_at", "criado_por", "created_at"),
@@ -209,6 +217,11 @@ class Lancamento(TimestampsMixin, Base):
     cancelado_por: Mapped[int | None] = mapped_column(ForeignKey("membros.id", ondelete="RESTRICT"))
     motivo_cancelamento: Mapped[str | None] = mapped_column(Text)
     origem: Mapped[str] = mapped_column(String(20))
+    # Preenchidos só nos lançamentos gerados por uma recorrência (mês = dia 1).
+    recorrencia_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recorrencias.id", ondelete="RESTRICT")
+    )
+    recorrencia_mes: Mapped[date | None] = mapped_column(Date)
     # Controle otimista de concorrência; também identifica a revisão das parcelas.
     revisao: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"))
 
@@ -222,6 +235,45 @@ class Lancamento(TimestampsMixin, Base):
     )
 
     __mapper_args__ = {"version_id_col": revisao}  # noqa: RUF012
+
+
+class Recorrencia(TimestampsMixin, Base):
+    """Molde de uma receita ou despesa mensal; gera lançamentos comuns, um por mês."""
+
+    __tablename__ = "recorrencias"
+    __table_args__ = (
+        CheckConstraint("tipo IN ('RECEITA', 'DEBITO')", name="tipo"),
+        CheckConstraint("valor > 0 AND valor <= 1000000", name="valor"),
+        CheckConstraint("length(descricao) BETWEEN 1 AND 120", name="descricao_tamanho"),
+        CheckConstraint("dia BETWEEN 1 AND 31", name="dia"),
+        CheckConstraint(
+            "EXTRACT(DAY FROM inicio) = 1 AND (fim IS NULL OR"
+            " (EXTRACT(DAY FROM fim) = 1 AND fim >= inicio))",
+            name="periodo",
+        ),
+        CheckConstraint(
+            "gerada_ate IS NULL OR EXTRACT(DAY FROM gerada_ate) = 1", name="gerada_ate"
+        ),
+        Index("ix_recorrencias_membro_id", "membro_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(10))
+    valor: Mapped[Decimal]
+    descricao: Mapped[str] = mapped_column(String(120))
+    categoria_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categorias.id", ondelete="RESTRICT")
+    )
+    membro_id: Mapped[int] = mapped_column(ForeignKey("membros.id", ondelete="RESTRICT"))
+    criado_por: Mapped[int] = mapped_column(ForeignKey("membros.id", ondelete="RESTRICT"))
+    # Dia do mês (1 a 31); em mês mais curto, vale o último dia.
+    dia: Mapped[int] = mapped_column(SmallInteger)
+    # Primeiro e último mês (dia 1); fim NULL = sem prazo.
+    inicio: Mapped[date] = mapped_column(Date)
+    fim: Mapped[date | None] = mapped_column(Date)
+    ativa: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    # Último mês já tratado pela geração (dia 1); NULL = nenhum ainda.
+    gerada_ate: Mapped[date | None] = mapped_column(Date)
 
 
 class Parcela(TimestampsMixin, Base):

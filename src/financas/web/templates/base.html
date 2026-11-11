@@ -23,6 +23,7 @@
     <nav aria-label="Principal">
       <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Dashboard</a>
       <a href="/lancamentos" {% if request.url.path.startswith('/lancamentos') %}aria-current="page"{% endif %}>Lançamentos</a>
+      <a href="/recorrentes" {% if request.url.path.startswith('/recorrentes') %}aria-current="page"{% endif %}>Recorrentes</a>
       {% if usuario.eh_admin %}
       <a href="/membros" {% if request.url.path.startswith('/membros') %}aria-current="page"{% endif %}>Membros</a>
       <a href="/categorias" {% if request.url.path.startswith('/categorias') %}aria-current="page"{% endif %}>Categorias</a>

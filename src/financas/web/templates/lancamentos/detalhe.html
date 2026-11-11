@@ -23,7 +23,7 @@
     <dt>Categoria</dt><dd>{{ categoria or '—' }}</dd>
     <dt>Titular</dt><dd>{{ titular.nome }}</dd>
     <dt>Registrado por</dt><dd>{{ autor.nome }}</dd>
-    <dt>Origem</dt><dd>{{ lanc.origem | origem }}</dd>
+    <dt>Origem</dt><dd>{{ lanc.origem | origem }}{% if lanc.recorrencia_id %} <small class="sutil">(<a href="/recorrentes">recorrência</a> de {{ lanc.recorrencia_mes | mes }}; editar ou cancelar aqui vale só para este mês)</small>{% endif %}</dd>
     <dt>Revisão</dt><dd>{{ lanc.revisao }}</dd>
     {% if lanc.status == 'CANCELADO' %}
       <dt>Cancelado em</dt><dd>{{ lanc.cancelado_em | datahora }} por {{ nomes.get(lanc.cancelado_por, '—') }}</dd>

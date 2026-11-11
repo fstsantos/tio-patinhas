@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set v = form.valores %}
+{% block titulo %}{% if rec %}Editar recorrência{% else %}Nova recorrência{% endif %}{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>{% if rec %}Editar recorrência{% else %}Nova recorrência{% endif %}</h1>
+  {% if form.erro_geral %}<div class="aviso erro" role="alert">{{ form.erro_geral }}</div>{% endif %}
+  {% if rec %}<p class="aviso info">As mudanças valem para os meses que ainda não foram lançados. Para mudar um mês já lançado, edite o lançamento dele.</p>{% endif %}
+  <form method="post" class="formulario" action="{% if rec %}/recorrentes/{{ rec.id }}/editar{% else %}/recorrentes{% endif %}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <fieldset {% if rec %}disabled{% endif %}>
+      <legend>Tipo</legend>
+      <div class="opcoes">
+      {% for t, n in tipos %}
+        <label class="opcao"><input type="radio" name="tipo" value="{{ t }}" {% if v.tipo == t %}checked{% endif %}> {{ n }}</label>
+      {% endfor %}
+      </div>
+      {% if form.erros.tipo %}<p class="erro-campo">{{ form.erros.tipo }}</p>{% endif %}
+    </fieldset>
+    <label>Descrição
+      <input name="descricao" maxlength="120" value="{{ v.descricao }}" required placeholder="Aluguel, escola, salário…">
+      {% if form.erros.descricao %}<span class="erro-campo">{{ form.erros.descricao }}</span>{% endif %}
+    </label>
+    <label>Valor (R$)
+      <input name="valor" inputmode="decimal" value="{{ v.valor }}" placeholder="10,50" required aria-invalid="{{ 'true' if form.erros.valor else 'false' }}" aria-describedby="ajuda-valor">
+      <small id="ajuda-valor" class="sutil">Se o valor muda a cada mês (luz, água), informe uma estimativa e corrija o lançamento do mês quando a conta chegar.</small>
+      {% if form.erros.valor %}<span class="erro-campo">{{ form.erros.valor }}</span>{% endif %}
+    </label>
+    <label>Dia do mês
+      <input name="dia" type="number" min="1" max="31" value="{{ v.dia }}" required aria-describedby="ajuda-dia">
+      <small id="ajuda-dia" class="sutil">Se o mês não tiver esse dia (ex.: 31), vale o último dia do mês.</small>
+      {% if form.erros.dia %}<span class="erro-campo">{{ form.erros.dia }}</span>{% endif %}
+    </label>
+    <label>Primeiro mês{% if not rec %} (opcional){% endif %}
+      <input name="inicio" type="month" value="{{ v.inicio }}" placeholder="aaaa-mm" {% if rec %}disabled{% else %}min="{{ hoje.strftime('%Y-%m') }}" aria-describedby="ajuda-inicio"{% endif %}>
+      {% if not rec %}<small id="ajuda-inicio" class="sutil">Em branco: este mês, se o dia ainda não passou; senão, o mês que vem (para não repetir o que você já lançou).</small>{% endif %}
+      {% if form.erros.inicio %}<span class="erro-campo">{{ form.erros.inicio }}</span>{% endif %}
+    </label>
+    <label>Último mês (opcional)
+      <input name="fim" type="month" value="{{ v.fim }}" placeholder="aaaa-mm" aria-describedby="ajuda-fim">
+      <small id="ajuda-fim" class="sutil">Em branco: sem prazo para acabar.</small>
+      {% if form.erros.fim %}<span class="erro-campo">{{ form.erros.fim }}</span>{% endif %}
+    </label>
+    <label>Categoria (opcional)
+      <select name="categoria"><option value="">Sem categoria</option>
+        {% for c in categorias if c.ativa or v.categoria == c.id|string %}<option value="{{ c.id }}" {% if v.categoria == c.id|string %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    {% if usuario.eh_admin and not rec %}
+    <label>Titular
+      <select name="titular">{% for m in membros if m.ativo %}<option value="{{ m.id }}" {% if v.titular == m.id|string %}selected{% endif %}>{{ m.nome }}</option>{% endfor %}</select>
+    </label>
+    {% endif %}
+    <div class="acoes">
+      <button class="botao primario" type="submit">Salvar</button>
+      <a class="botao" href="/recorrentes">Voltar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -88,7 +88,7 @@ def validar_dados(dados: DadosLancamento) -> DadosLancamento:
     return replace(dados, valor=valor, descricao=descricao, primeira_competencia=primeira)
 
 
-async def _validar_categoria(
+async def validar_categoria(
     s: AsyncSession, categoria_id: int | None, tipo: TipoLancamento
 ) -> None:
     if categoria_id is None:
@@ -163,6 +163,8 @@ async def ultimo_desfazivel(s: AsyncSession, clock: Clock, membro: Membro) -> La
             Lancamento.membro_id == membro.id,
             Lancamento.criado_por == membro.id,
             Lancamento.status == StatusLancamento.ATIVO.value,
+            # Os gerados por recorrência não são "o último que eu lancei".
+            Lancamento.recorrencia_id.is_(None),
             Lancamento.created_at >= limite,
         )
         .order_by(Lancamento.created_at.desc(), Lancamento.id.desc())
@@ -201,7 +203,9 @@ async def criar(
     *,
     origem: Origem,
     titular_id: int | None = None,
+    recorrencia: tuple[int, date] | None = None,
 ) -> LancamentoComParcelas:
+    """``recorrencia`` = (id, mês) quando o lançamento é gerado por uma recorrência."""
     titular_id = ator.id if titular_id is None else titular_id
     autorizacao.exigir_criar_para(ator, titular_id)
     if titular_id != ator.id:
@@ -209,7 +213,7 @@ async def criar(
         if titular is None or not titular.ativo:
             raise NaoEncontrado("Membro titular não encontrado ou inativo.")
     dados = validar_dados(dados)
-    await _validar_categoria(s, dados.categoria_id, dados.tipo)
+    await validar_categoria(s, dados.categoria_id, dados.tipo)
 
     agora = clock.agora()
     lanc = Lancamento(
@@ -225,6 +229,8 @@ async def criar(
         primeira_competencia=dados.primeira_competencia,
         status=StatusLancamento.ATIVO.value,
         origem=origem.value,
+        recorrencia_id=recorrencia[0] if recorrencia else None,
+        recorrencia_mes=recorrencia[1] if recorrencia else None,
         created_at=agora,
         updated_at=agora,
     )
@@ -336,7 +342,7 @@ async def editar(
     novos = validar_dados(novos)
     # Categoria mantida não é revalidada: ela pode ter sido desativada depois.
     if novos.categoria_id != lanc.categoria_id:
-        await _validar_categoria(s, novos.categoria_id, novos.tipo)
+        await validar_categoria(s, novos.categoria_id, novos.tipo)
     motivo = _validar_motivo(motivo)
 
     parcelas = await parcelas_vigentes(s, lanc.id)

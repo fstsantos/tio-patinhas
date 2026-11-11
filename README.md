@@ -30,6 +30,7 @@ uv run alembic upgrade head      # aplica (DATABASE_URL do .env)
 uv run alembic downgrade -1      # reverte a última
 uv run financas criar-admin      # primeiro administrador
 uv run financas verificar-integridade
+uv run financas gerar-recorrentes       # lança as recorrências do mês (a web já faz sozinha)
 uv run financas importar-fatura faturas/<arquivo>.xlsx --membro <nome>  # prévia; ver docs/operacao.md
 ```
 
@@ -108,6 +109,10 @@ Entre com o login criado por `financas criar-admin`. Telas:
   para admin), criação, detalhe com parcelas vigentes e revisões substituídas, edição
   (com controle de concorrência), cancelamento com motivo, restauração (admin) e
   histórico de auditoria (admin).
+- **Recorrentes:** receitas e despesas que se repetem todo mês (salário, aluguel).
+  O lançamento de cada mês é criado sozinho quando o mês começa, com a data do dia
+  combinado, e já conta no saldo. Criar, editar, encerrar e reativar; cada membro
+  altera as suas, o admin qualquer uma. Ver `docs/regras-de-negocio.md`.
 - **Membros** e **Categorias:** somente administradores.
 
 Segurança: sessões no banco (o cookie `HttpOnly`/`SameSite=Lax`, `Secure` em
@@ -119,9 +124,9 @@ e 20 por IP a cada 15 minutos. Permissões são verificadas nos serviços, não 
 
 ```
 src/financas/
-├── domain/          # dinheiro, calendário, parcelamento, orçamento (sem I/O)
+├── domain/          # dinheiro, calendário, parcelamento, recorrência, orçamento (sem I/O)
 ├── db/              # modelos ORM e sessão
-├── services/        # lançamentos, relatórios, autorização, auditoria, confirmações…
+├── services/        # lançamentos, recorrências, relatórios, autorização, auditoria, confirmações…
 ├── interpretation/  # parser de texto, números falados, interpretador de voz
 ├── integrations/    # transcrição (faster-whisper, OpenAI) e LLM (Anthropic, compatível com OpenAI)
 ├── bot/             # processador (independente do Telegram), handlers, formatação
@@ -190,13 +195,15 @@ gerenciado e segredos no gerenciador da plataforma.
 - Não há controle de pagamentos (parcela "paga"), saldo bancário nem transporte de
   saldo entre meses.
 - Parcelas individuais não são editáveis nem canceláveis.
+- Recorrências são só mensais, de receita ou débito, e cadastradas pela web. Só o mês
+  corrente é lançado: o resumo anual não projeta os meses seguintes.
 - Perguntas de esclarecimento da voz não guardam contexto: reenvie o comando completo.
 
 ## Funcionalidades futuras
 
 Análises por LLM sobre dados agregados (`integrations/llm/contexto_agregado.py` já
-produz o contexto anonimizado), categorização sugerida, metas e simulações de orçamento,
-despesas recorrentes, perguntas em linguagem natural.
+produz o contexto anonimizado), categorização sugerida, metas e simulações de orçamento, detecção de despesas
+recorrentes, perguntas em linguagem natural.
 
 ## Documentação
 

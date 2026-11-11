@@ -55,6 +55,34 @@ Orçamento diário = Saldo ÷ dias restantes (se Saldo > 0); 0 caso contrário
 - Compras no crédito feitas em M não entram no saldo de M (são informativas).
 - Sem transporte de saldo entre meses.
 
+## Recorrências (`domain/recorrencia.py`, `services/recorrencias.py`)
+
+Receitas e despesas que se repetem todo mês (salário, aluguel, escola). Ver ADR 0007.
+
+- Só receita ou débito. Compras no cartão ficam de fora: chegam pela fatura importada.
+- Dia fixo do mês; em mês mais curto, o último dia (31 → 30/04, 28 ou 29/02).
+- O lançamento de cada mês é criado **quando o mês começa**, com a data do dia
+  combinado. É um lançamento comum (origem `RECORRENCIA`) e, pela regra das datas
+  futuras, já conta no saldo e no orçamento do mês desde o dia 1.
+- Só o mês corrente é gerado; meses futuros não aparecem em relatório nenhum.
+- Um lançamento por recorrência e mês (único no banco): gerar de novo não duplica, e
+  os meses em que o sistema ficou parado são recuperados na execução seguinte.
+- Primeiro mês: não pode ser um mês que já passou. Em branco, é o mês corrente se o
+  dia ainda não passou; senão, o seguinte (o deste mês já foi lançado à mão).
+- Valor variável (luz, água): informe uma estimativa e edite o lançamento do mês.
+- Editar ou cancelar o lançamento de um mês vale só para aquele mês; o mês cancelado
+  não é gerado de novo.
+- Editar a recorrência vale para os meses ainda não gerados; tipo, titular e primeiro
+  mês não mudam.
+- Encerrar para de gerar e mantém o que já foi lançado. Reativar não gera os meses
+  que passaram com ela encerrada (gera o corrente, se ainda não tinha sido).
+- O lançamento gerado é assinado por quem criou a recorrência (ou pelo titular, se o
+  criador não puder mais lançar para ele). Titular inativo não recebe lançamentos, e
+  esses meses não voltam. Categoria desativada: o lançamento sai sem categoria.
+- Permissões: membro cria e altera só as próprias (titular); admin, qualquer uma.
+  Criação, edição, encerramento e reativação gravam auditoria (entidade `recorrencia`).
+- O `desfazer` do bot não alcança lançamentos gerados por recorrência.
+
 ## Integridade (migração `0001`, `services/integridade.py`)
 
 Garantida pelos serviços e, como segunda barreira, por *constraint triggers*

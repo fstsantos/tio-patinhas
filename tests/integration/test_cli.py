@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -9,7 +11,7 @@ from typer.testing import CliRunner
 
 from financas import cli
 from financas.config import get_settings
-from financas.db.models import Auditoria, Membro
+from financas.db.models import Auditoria, Membro, Recorrencia
 from financas.db.session import normalizar_url
 from financas.services import senhas
 
@@ -118,3 +120,25 @@ def test_testar_llm(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
         r = runner.invoke(cli.app, ["testar-llm", "um débito de 20 e um ganho de 15"])
         assert r.exit_code == codigo, r.output
         assert all(t in r.output for t in trechos), r.output
+
+
+def test_gerar_recorrentes(runner: CliRunner, banco_migrado: str) -> None:
+    engine = create_engine(normalizar_url(banco_migrado))
+    with Session(engine) as s:
+        m = Membro(nome="Ana", papel="membro", ativo=True)
+        s.add(m)
+        s.flush()
+        # Começou em jan/2020 e nunca foi gerada: o comando recupera todos os meses.
+        s.add(
+            Recorrencia(
+                tipo="RECEITA", valor=100, descricao="Salário", membro_id=m.id,
+                criado_por=m.id, dia=5, inicio=date(2020, 1, 1), fim=date(2020, 3, 1),
+            )
+        )  # fmt: skip
+        s.commit()
+    r = runner.invoke(cli.app, ["gerar-recorrentes"])
+    assert r.exit_code == 0, r.output
+    assert "05/02/2020  Salário  R$ 100,00" in r.output
+    assert "3 lançamento(s) gerado(s)." in r.output
+    assert "0 lançamento(s) gerado(s)." in runner.invoke(cli.app, ["gerar-recorrentes"]).output
+    engine.dispose()

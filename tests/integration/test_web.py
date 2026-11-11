@@ -511,6 +511,10 @@ async def test_numeros_identicos_bot_e_web(
     detalhe = html.split('id="compras-credito"')[1].split("<small>")[0]
     assert "<span>20/03</span><span>tv</span>" in detalhe and "R$ 1.000,00" in detalhe
     assert "geladeira" not in detalhe  # comprada em fevereiro
+    # Cada mês seguinte detalha as parcelas que o compõem (tv em 10x, a partir de abril).
+    parcelas_abril = html.split('id="parcelas-2026-4"')[1].split("</li>")[0]
+    assert "<span>20/03</span><span>tv <small" in parcelas_abril
+    assert ">1/10</small>" in parcelas_abril and "R$ 100,00" in parcelas_abril
     # Dentro de <p> só cabem elementos de linha: tabela ou div fechariam o parágrafo
     # no navegador e a lista apareceria sempre aberta.
     assert "<table" not in detalhe and "<div" not in detalhe and "</p>" not in detalhe
